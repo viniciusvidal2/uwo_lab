@@ -1,0 +1,6 @@
+[submodule "FAST_LIO"]
+	path = FAST_LIO
+	url = https://github.com/viniciusvidal2/FAST_LIO.git
+[submodule "zed-ros-wrapper"]
+	path = zed-ros-wrapper
+	url = https://github.com/viniciusvidal2/zed-ros-wrapper.git
