@@ -4,6 +4,3 @@
 [submodule "zed-ros-wrapper"]
 	path = zed-ros-wrapper
 	url = https://github.com/viniciusvidal2/zed-ros-wrapper.git
-[submodule "livox_ros_driver"]
-	path = livox_ros_driver
-        url = https://github.com/ziv-lin/livox_ros_driver_for_R2LIVE.git
