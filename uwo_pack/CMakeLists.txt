@@ -13,6 +13,7 @@ find_package(catkin REQUIRED COMPONENTS
     pcl_ros
     tf2_ros
     pcl_conversions
+    nav_msgs
 )
 
 find_package(OpenCV REQUIRED)

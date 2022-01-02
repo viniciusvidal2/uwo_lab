@@ -5,6 +5,8 @@
 #include <math.h>
 #include <ctime>
 
+#include <nav_msgs/Odometry.h>
+
 #include <Eigen/Geometry>
 #include <Eigen/Dense>
 #include <Eigen/Core>
@@ -43,6 +45,10 @@ typedef PointXYZRGB PointT;
 static Matrix3f K;
 static MatrixXf P(3, 4);
 
+// Rotation and translation from body frame to global frame
+Eigen::Quaternionf q_bg;
+Vector3f t_bg;
+
 // Global image pointer
 cv_bridge::CvImagePtr cam_img;
 PointCloud<PointT>::Ptr cloud;
@@ -54,7 +60,7 @@ ros::Publisher cloud_publisher;
 void colorCloudCPU(PointCloud<PointT>::Ptr cloud_in, Mat image){
 #pragma omp parallel for
   for(size_t i = 0; i < cloud_in->size(); i++){
-    // Pegar ponto em coordenadas homogeneas
+    // Homogeneous coordiantes
     MatrixXf X_(4, 1);
     X_ << cloud_in->points[i].x,
         cloud_in->points[i].y,
@@ -64,7 +70,7 @@ void colorCloudCPU(PointCloud<PointT>::Ptr cloud_in, Mat image){
     X = P*X_;
     if(X(2, 0) > 0){
       X = X/X(2, 0);
-      // Adicionando ponto na imagem se for o caso de projetado corretamente
+      // If projected inside the image, pick pixel color
       if(floor(X(0,0)) > 0 && floor(X(0,0)) < image.cols && floor(X(1,0)) > 0 && floor(X(1,0)) < image.rows){
         cv::Vec3b cor = image.at<Vec3b>(Point(X(0,0), X(1,0)));
         PointT point = cloud_in->points[i];
@@ -73,13 +79,33 @@ void colorCloudCPU(PointCloud<PointT>::Ptr cloud_in, Mat image){
       }
     }
   }
+  // Points that were not projected should be removed
+  ExtractIndices<PointXYZRGB> extract;
+  PointIndices::Ptr inliers (new PointIndices);
+  for (size_t i = 0; i < cloud_in->size(); i++){
+    if (cloud_in->points[i].r == 0 && cloud_in->points[i].g == 0 && cloud_in->points[i].b == 0)
+      inliers->indices.emplace_back(i);
+  }
+  extract.setInputCloud(cloud_in);
+  extract.setIndices(inliers);
+  extract.setNegative(true);
+  extract.filter(*cloud_in);
 }
 
-/// Camera Callback
+/// Camera callback
 ///
 void camCallback(const sensor_msgs::ImageConstPtr& msg){
   // Update the image pointer
   cam_img = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8);
+}
+
+/// Odometry callback
+///
+void odomCallback(const nav_msgs::OdometryConstPtr& msg){
+  // Get the current odometry to transform the cloud back to the body frame
+  q_bg = {msg->pose.pose.orientation.w, msg->pose.pose.orientation.x,
+          msg->pose.pose.orientation.y, msg->pose.pose.orientation.z};
+  t_bg = {msg->pose.pose.position.x, msg->pose.pose.position.y, msg->pose.pose.position.z};
 }
 
 /// Point cloud callback
@@ -88,9 +114,15 @@ void cloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg){
   // Convert the message - force PointT cloud
   PointCloud<PointIn>::Ptr cloud_in (new PointCloud<PointIn>);
   fromROSMsg(*msg, *cloud_in);
+
+  // Transform the cloud from global frame to body frame
+  transformPointCloud<PointXYZ>(*cloud_in, *cloud_in, -t_bg, q_bg.inverse());
   // Project the cloud in the image
   copyPointCloud(*cloud_in, *cloud);
   colorCloudCPU(cloud, cam_img->image);
+  // Transform the cloud from body frame to global frame
+  transformPointCloud<PointT>(*cloud, *cloud, t_bg, q_bg);
+
   // Publish in the new topic
   sensor_msgs::PointCloud2 out_msg;
   toROSMsg(*cloud, out_msg);
