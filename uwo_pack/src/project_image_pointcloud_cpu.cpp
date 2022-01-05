@@ -5,6 +5,10 @@
 #include <math.h>
 #include <ctime>
 
+#include <message_filters/synchronizer.h>
+#include <message_filters/sync_policies/approximate_time.h>
+#include <message_filters/subscriber.h>
+
 #include <nav_msgs/Odometry.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <sensor_msgs/CompressedImage.h>
@@ -53,6 +57,7 @@ Mat dist_coefs, K_;
 Eigen::Quaternionf q_bg;
 Vector3f t_bg;
 Matrix4f T_lc; // From laser to camera frame (X forward to Z forward)
+#define CLOUD_FRAME "body"
 
 // Global image pointer and undistorted image
 cv_bridge::CvImagePtr cam_img;
@@ -101,36 +106,49 @@ void colorCloudCPU(PointCloud<PointT>::Ptr cloud_in, Mat image){
 //  extract.filter(*cloud_in);
 }
 
-/// Camera callback
+/// Sync callback
 ///
-void camCallback(const sensor_msgs::CompressedImageConstPtr& msg){
+void syncCallback(const sensor_msgs::CompressedImageConstPtr &im_msg,
+                  const sensor_msgs::PointCloud2ConstPtr &cl_msg){
   // Update the image pointer
-  cam_img = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8);
+  cam_img = cv_bridge::toCvCopy(im_msg, sensor_msgs::image_encodings::BGR8);
   // Undistort the image
-  undistort(cam_img->image, image_undistorted, K_, dist_coefs);
-}
+  undistort(cam_img->image, image_undistorted, K_, dist_coefs);  
 
-/// Point cloud callback
-///
-void cloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg){
-  // Convert the message - force PointT cloud
+  // Convert the message
   PointCloud<PointIn>::Ptr cloud_in (new PointCloud<PointIn>);
-  fromROSMsg(*msg, *cloud_in);
+  fromROSMsg(*cl_msg, *cloud_in);
+
+  // Filter far points
+  PassThrough<PointIn> pass;
+  pass.setInputCloud(cloud_in);
+  pass.setFilterFieldName("x");
+  pass.setFilterLimits(0.0, 30.0);
+  pass.filter(*cloud_in);
 
   // Copy the point cloud to the global one with RGB
   copyPointCloud(*cloud_in, *cloud);
+
+  // Color cloud
+  colorCloudCPU(cloud, image_undistorted);
+
+  // Publish in the new topic
+  sensor_msgs::PointCloud2 out_msg;
+  toROSMsg(*cloud, out_msg);
+  out_msg.header.frame_id = CLOUD_FRAME;
+  cloud_publisher.publish(out_msg);
 }
 
-/// Odometry callback
-///
-void odomCallback(const nav_msgs::OdometryConstPtr& msg){
-  // Get the current odometry to transform the cloud back to the body frame
-  q_bg.w() = msg->pose.pose.orientation.w;
-  q_bg.x() = msg->pose.pose.orientation.x;
-  q_bg.y() = msg->pose.pose.orientation.y;
-  q_bg.z() = msg->pose.pose.orientation.z;
-  t_bg << msg->pose.pose.position.x, msg->pose.pose.position.y, msg->pose.pose.position.z;
-}
+///// Odometry callback
+/////
+//void odomCallback(const nav_msgs::OdometryConstPtr& msg){
+//  // Get the current odometry to transform the cloud back to the body frame
+//  q_bg.w() = msg->pose.pose.orientation.w;
+//  q_bg.x() = msg->pose.pose.orientation.x;
+//  q_bg.y() = msg->pose.pose.orientation.y;
+//  q_bg.z() = msg->pose.pose.orientation.z;
+//  t_bg << msg->pose.pose.position.x, msg->pose.pose.position.y, msg->pose.pose.position.z;
+//}
 
 int main(int argc, char **argv)
 {
@@ -140,7 +158,7 @@ int main(int argc, char **argv)
 
   // Initialize point cloud and image pointers
   cloud = (PointCloud<PointT>::Ptr) new PointCloud<PointT>();
-  cloud->header.frame_id = "camera_init";
+  cloud->header.frame_id = CLOUD_FRAME;
   cam_img = (cv_bridge::CvImagePtr) new cv_bridge::CvImage;
 
   // Initialize matrices - r3live datasets
@@ -162,29 +180,18 @@ int main(int argc, char **argv)
   T_lc.block<3, 3>(0, 0) = R;
 
   // Initialize cloud publisher
-  cloud_publisher = nh.advertise<sensor_msgs::PointCloud2>("/cloud_colored", 10);
+  cloud_publisher = nh.advertise<sensor_msgs::PointCloud2>("/cloud_colored", 1000);
 
   // Initialize sync subscribers
-  ros::Subscriber sub_cam   = nh.subscribe("/camera/image_color/compressed", 3, camCallback);
-  ros::Subscriber sub_cloud = nh.subscribe("/cloud_registered", 3, cloudCallback);
-  ros::Subscriber sub_odom  = nh.subscribe("/Odometry", 3, odomCallback);
+//  ros::Subscriber sub_odom  = nh.subscribe("/Odometry", 3, odomCallback);
+  message_filters::Subscriber<sensor_msgs::CompressedImage> im_sub(nh, "/camera/image_color/compressed", 1);
+  message_filters::Subscriber<sensor_msgs::PointCloud2> cloud_sub(nh, "/cloud_registered_body", 1);
 
-  // Do the work in here so the subscribers are free
-  while(ros::ok()){
-    ros::spinOnce();
-    // Transform the cloud from global frame to body frame
-//    transformPointCloud<PointT>(*cloud, *cloud, -t_bg, q_bg.inverse());
-    // Color cloud
-    colorCloudCPU(cloud, image_undistorted);
-    // Transform the cloud from body frame to global frame
-//    transformPointCloud<PointT>(*cloud, *cloud, t_bg, q_bg);
+  typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::CompressedImage, sensor_msgs::PointCloud2> sync_pol;
+  message_filters::Synchronizer<sync_pol> sync(sync_pol(1000), im_sub, cloud_sub);
+  sync.registerCallback(boost::bind(&syncCallback, _1, _2));
 
-    // Publish in the new topic
-    sensor_msgs::PointCloud2 out_msg;
-    toROSMsg(*cloud, out_msg);
-    out_msg.header.frame_id = "camera_init";
-    cloud_publisher.publish(out_msg);
-  }
+  ros::spin();
 
   return 0;
 }
