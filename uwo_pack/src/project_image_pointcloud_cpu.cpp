@@ -47,73 +47,64 @@ using namespace Eigen;
 // Type defs for point types PCL
 typedef PointXYZ PointIn;
 typedef PointXYZRGB PointT;
+#define CLOUD_FRAME "body"
 
 // Intrinsic and extrinsic matrices, distortion coeficients
-static Matrix3f K;
-static MatrixXf P(3, 4);
+//static Matrix3f K;
+static Matrix4f P;
 Mat dist_coefs, K_;
 
 // Rotation and translation from body frame to global frame
-Eigen::Quaternionf q_bg;
-Vector3f t_bg;
-Matrix4f T_lc; // From laser to camera frame (X forward to Z forward)
-#define CLOUD_FRAME "body"
+//Eigen::Quaternionf q_bg;
+//Vector3f t_bg;
 
-// Global image pointer and undistorted image
-cv_bridge::CvImagePtr cam_img;
-Mat image_undistorted;
-
-// Global point cloud
-PointCloud<PointT>::Ptr cloud;
-
-// Cloud publisher
+// Publishers
 ros::Publisher cloud_publisher;
+ros::Publisher odom_publisher;
 
 // Void to project the cloud points in the image and get the color from it
 void colorCloudCPU(PointCloud<PointT>::Ptr cloud_in, Mat image){
 #pragma omp parallel for
   for(size_t i = 0; i < cloud_in->size(); i++){
-    // Homogeneous coordiantes
-    MatrixXf X_(4, 1);
-    X_ << cloud_in->points[i].x,
-        cloud_in->points[i].y,
-        cloud_in->points[i].z,
-        1;
-    X_ = T_lc*X_;
-    MatrixXf X(3, 1);
-    X = P*X_;
-    if(X(2, 0) > 0){
-      X = X/X(2, 0);
-      // If projected inside the image, pick pixel color
-      if(floor(X(0,0)) > 0 && floor(X(0,0)) < image.cols && floor(X(1,0)) > 0 && floor(X(1,0)) < image.rows){
-        cv::Vec3b cor = image.at<Vec3b>(Point(X(0,0), X(1,0)));
-        PointT point = cloud_in->points[i];
+    // Calculate the third element that represent the pixel at scale, if it is positive the 3D point lies in
+    // front of the camera, so we are good to go
+    PointT point = cloud_in->points[i];
+    float w = P(2, 0)*point.x + P(2, 1)*point.y + P(2, 2)*point.z + P(2, 3);
+    if (w > 0){
+      // Calculate the pixel coordinates
+      float u = (P(0, 0)*point.x + P(0, 1)*point.y + P(0, 2)*point.z + P(0, 3))/w;
+      float v = (P(1, 0)*point.x + P(1, 1)*point.y + P(1, 2)*point.z + P(1, 3))/w;
+      // Get the pixel color value
+      if(floor(u) > 0 && floor(u) < image.cols && floor(v) > 0 && floor(v) < image.rows){
+        cv::Vec3b cor = image.at<Vec3b>(Point(u, v));
         point.b = cor.val[0]; point.g = cor.val[1]; point.r = cor.val[2];
         cloud_in->points[i] = point;
       }
     }
   }
-//  // Points that were not projected should be removed
-//  ExtractIndices<PointXYZRGB> extract;
-//  PointIndices::Ptr inliers (new PointIndices);
-//  for (size_t i = 0; i < cloud_in->size(); i++){
-//    if (cloud_in->points[i].r == 0 && cloud_in->points[i].g == 0 && cloud_in->points[i].b == 0)
-//      inliers->indices.emplace_back(i);
-//  }
-//  extract.setInputCloud(cloud_in);
-//  extract.setIndices(inliers);
-//  extract.setNegative(true);
-//  extract.filter(*cloud_in);
+  // Points that were not projected should be removed
+  ExtractIndices<PointXYZRGB> extract;
+  PointIndices::Ptr inliers (new PointIndices);
+  for (size_t i = 0; i < cloud_in->size(); i++){
+    if (cloud_in->points[i].r == 0 && cloud_in->points[i].g == 0 && cloud_in->points[i].b == 0)
+      inliers->indices.emplace_back(i);
+  }
+  extract.setInputCloud(cloud_in);
+  extract.setIndices(inliers);
+  extract.setNegative(true);
+  extract.filter(*cloud_in);
 }
 
 /// Sync callback
 ///
 void syncCallback(const sensor_msgs::CompressedImageConstPtr &im_msg,
-                  const sensor_msgs::PointCloud2ConstPtr &cl_msg){
+                  const sensor_msgs::PointCloud2ConstPtr &cl_msg,
+                  const nav_msgs::OdometryConstPtr &o_msg){
   // Update the image pointer
-  cam_img = cv_bridge::toCvCopy(im_msg, sensor_msgs::image_encodings::BGR8);
+  cv_bridge::CvImagePtr cam_img = cv_bridge::toCvCopy(im_msg, sensor_msgs::image_encodings::BGR8);
   // Undistort the image
-  undistort(cam_img->image, image_undistorted, K_, dist_coefs);  
+  Mat image_undistorted;
+  undistort(cam_img->image, image_undistorted, K_, dist_coefs);
 
   // Convert the message
   PointCloud<PointIn>::Ptr cloud_in (new PointCloud<PointIn>);
@@ -126,17 +117,24 @@ void syncCallback(const sensor_msgs::CompressedImageConstPtr &im_msg,
   pass.setFilterLimits(0.0, 30.0);
   pass.filter(*cloud_in);
 
-  // Copy the point cloud to the global one with RGB
+  // Copy the point cloud to the one with RGB
+  PointCloud<PointT>::Ptr cloud (new PointCloud<PointT>);
+  cloud->header.frame_id = CLOUD_FRAME;
   copyPointCloud(*cloud_in, *cloud);
 
   // Color cloud
   colorCloudCPU(cloud, image_undistorted);
 
-  // Publish in the new topic
-  sensor_msgs::PointCloud2 out_msg;
-  toROSMsg(*cloud, out_msg);
-  out_msg.header.frame_id = CLOUD_FRAME;
-  cloud_publisher.publish(out_msg);
+  // Copy into ROS message to be published
+  sensor_msgs::PointCloud2 cl_msg_out;
+  toROSMsg(*cloud, cl_msg_out);
+  cl_msg_out.header.frame_id = CLOUD_FRAME;
+  cl_msg_out.header.stamp = cl_msg->header.stamp;
+  nav_msgs::Odometry o_msg_out = *o_msg;
+
+  // Publish both odometry and cloud synchronized for the Scan Context
+  cloud_publisher.publish(cl_msg_out);
+  odom_publisher.publish(o_msg_out);
 }
 
 ///// Odometry callback
@@ -156,18 +154,15 @@ int main(int argc, char **argv)
   ros::NodeHandle nh;
   ROS_INFO("Initialyzing node ...");
 
-  // Initialize point cloud and image pointers
-  cloud = (PointCloud<PointT>::Ptr) new PointCloud<PointT>();
-  cloud->header.frame_id = CLOUD_FRAME;
-  cam_img = (cv_bridge::CvImagePtr) new cv_bridge::CvImage;
-
   // Initialize matrices - r3live datasets
+  Matrix3f K;
   K << 863.4241, 0.0, 640.6808,
       0.0,  863.4171, 518.3392,
       0.0, 0.0, 1.0 ;
   P << 1, 0, 0, 0.050166,
       0, 1, 0, 0.0474116,
-      0, 0, 1, -0.0312415;
+      0, 0, 1, -0.0312415,
+      0, 0, 0, 1;
   P.block<3,3>(0, 0) = K;
   float dist_coefs_[5] = {-0.1080, 0.1050, -1.2872e-04, 5.7923e-05, -0.0222};
   dist_coefs = Mat(5, 1, CV_64F, dist_coefs_);
@@ -176,22 +171,32 @@ int main(int argc, char **argv)
   // Rotation from laser to camera frame
   Matrix3f R;
   R = AngleAxisf(M_PI/2, Vector3f::UnitZ()) * AngleAxisf(-M_PI/2, Vector3f::UnitY());
-  T_lc = Matrix4f::Identity();
+  Matrix4f T_lc = Matrix4f::Identity(); // From laser to camera frame (X forward to Z forward)
   T_lc.block<3, 3>(0, 0) = R;
 
+  // Incorporate frame transform in the extrinsic matrix for once
+  P = P*T_lc;
+
   // Initialize cloud publisher
-  cloud_publisher = nh.advertise<sensor_msgs::PointCloud2>("/cloud_colored", 1000);
+  cloud_publisher = nh.advertise<sensor_msgs::PointCloud2>("/edge/cloud_colored", 1000);
+  odom_publisher  = nh.advertise<nav_msgs::Odometry>("/edge/odometry", 1000);
 
   // Initialize sync subscribers
-//  ros::Subscriber sub_odom  = nh.subscribe("/Odometry", 3, odomCallback);
   message_filters::Subscriber<sensor_msgs::CompressedImage> im_sub(nh, "/camera/image_color/compressed", 1);
-  message_filters::Subscriber<sensor_msgs::PointCloud2> cloud_sub(nh, "/cloud_registered_body", 1);
+  message_filters::Subscriber<sensor_msgs::PointCloud2>  cloud_sub(nh, "/cloud_registered_body", 1);
+  message_filters::Subscriber<nav_msgs::Odometry>         odom_sub(nh, "/Odometry", 1);
 
-  typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::CompressedImage, sensor_msgs::PointCloud2> sync_pol;
-  message_filters::Synchronizer<sync_pol> sync(sync_pol(1000), im_sub, cloud_sub);
-  sync.registerCallback(boost::bind(&syncCallback, _1, _2));
+  typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::CompressedImage,
+      sensor_msgs::PointCloud2, nav_msgs::Odometry> sync_pol;
+  message_filters::Synchronizer<sync_pol> sync(sync_pol(1000), im_sub, cloud_sub, odom_sub);
+  sync.registerCallback(boost::bind(&syncCallback, _1, _2, _3));
 
-  ros::spin();
+  ros::Rate r(100);
+  while(ros::ok()){
+    ros::spinOnce();
+    r.sleep();
+  }
 
+  ros::shutdown();
   return 0;
 }
