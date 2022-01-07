@@ -4,7 +4,7 @@
     <param name="scan_line" type="int" value="64" />
 
     <!-- if 1, do mapping 10 Hz, if 2, do mapping 5 Hz. Suggest to use 1, it will adjust frequence automaticlly -->
-    <!-- <param name="mapping_skip_frame" type="int" value="1" /> -->
+<!--     <param name="mapping_skip_frame" type="int" value="1" />-->
 
     <!-- remove too closed points -->
     <param name="minimum_range" type="double" value="0.5"/>
@@ -23,18 +23,20 @@
 <!--    <param name="sc_max_radius" type="double" value="40.0"/> -->
 
     <!-- for MulRan -->
-    <param name="lidar_type" type="string" value="Avia"/>
+    <param name="lidar_type" type="string" value="OS1-64"/>
 
-    <!-- input from FASTLIO2 -->
+    <!-- input from FASTLIO2 plus our color algorithm -->
     <remap from="/aft_mapped_to_init" to="/edge/odometry"/>
     <remap from="/velodyne_cloud_registered_local" to="/edge/cloud_colored"/>
+<!--    <remap from="/aft_mapped_to_init" to="/Odometry"/>-->
+<!--    <remap from="/velodyne_cloud_registered_local" to="/cloud_registered_body"/>-->
     <remap from="/cloud_for_scancontext" to="/cloud_registered_lidar"/>   <!-- because ScanContext requires lidar-ego-centric coordinate for the better performance -->
 
     <!-- utils -->
     <param name="save_directory" type="string" value="$(env HOME)/Desktop/catkin_fastlio_slam/data/"/>  <!-- CHANGE THIS and end with / -->
 
     <!-- nodes -->
-    <node pkg="aloam_velodyne" type="alaserPGO" name="alaserPGO" output="screen" /> <!-- Scan Context-based PGO -->
+    <node pkg="aloam_velodyne" type="alaserPGO" name="scan_context_node" output="screen" /> <!-- Scan Context-based PGO -->
 
     <!-- visulaization -->
     <arg name="rvizscpgo" default="true" />
