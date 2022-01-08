@@ -32,6 +32,17 @@
 #include <pcl/filters/statistical_outlier_removal.h>
 #include <pcl/filters/voxel_grid.h>
 
+#include "open3d/geometry/PointCloud.h"
+#include "open3d/geometry/KDTreeFlann.h"
+#include "open3d/geometry/VoxelGrid.h"
+#include "open3d/geometry/Geometry3D.h"
+#include "open3d/geometry/KDTreeFlann.h"
+#include "open3d/geometry/KDTreeSearchParam.h"
+#include "open3d/core/nns/NearestNeighborSearch.h"
+#include "open3d/Open3D.h"
+#include "open3d/geometry/MeshBase.h"
+#include "open3d/geometry/TriangleMesh.h"
+
 using namespace pcl;
 using namespace std;
 using namespace Eigen;
@@ -39,6 +50,26 @@ using namespace Eigen;
 // Type defs for point types PCL
 typedef PointXYZRGB PointT;
 #define CLOUD_FRAME "camera_init"
+
+/// Convert PCL cloud to Open3D
+///
+open3d::geometry::PointCloud convertPCL2Open3D(PointCloud<PointT>::Ptr c){
+  open3d::geometry::PointCloud ptc;
+  ptc.points_.resize(c->points.size());
+  ptc.colors_.resize(c->points.size());
+  ptc.normals_.resize(c->points.size());
+#pragma omp parallel for
+  for (size_t i=0; i<c->points.size(); i++) {
+    ptc.points_[i][0] = double(c->points[i].x);
+    ptc.points_[i][1] = double(c->points[i].y);
+    ptc.points_[i][2] = double(c->points[i].z);
+    ptc.colors_[i][0] = double(c->points[i].b)/255.0;
+    ptc.colors_[i][1] = double(c->points[i].g)/255.0;
+    ptc.colors_[i][2] = double(c->points[i].r)/255.0;
+  }
+
+  return ptc;
+}
 
 int main(int argc, char **argv)
 {
@@ -48,9 +79,12 @@ int main(int argc, char **argv)
 
   // Get the point cloud
   PointCloud<PointT>::Ptr cloud (new PointCloud<PointT>);
-  pcl::io::loadPLYFile("name.ply", *cloud);
+  pcl::io::loadPLYFile("/home/vinicius/Downloads/point_cloud.ply", *cloud);
 
   // Convert from PCL to Open3D
+  open3d::geometry::PointCloud o3d_cloud = convertPCL2Open3D(cloud);
+  o3d_cloud.EstimateNormals(open3d::geometry::KDTreeSearchParamKNN(10), true);
+  o3d_cloud.OrientNormalsToAlignWithDirection();
 
   // Separate the point cloud in regions
 
@@ -65,6 +99,12 @@ int main(int argc, char **argv)
   // Put all of them toguether
 
   // Display final cloud
+  open3d::visualization::Visualizer vis3;
+  vis3.CreateVisualizerWindow("teste3", 1400, 700);
+  vis3.AddGeometry(std::make_shared<open3d::geometry::PointCloud>(o3d_cloud));
+  vis3.Run();
+  vis3.DestroyVisualizerWindow();
+  vis3.ClearGeometries();
 
   ros::spinOnce();
   ros::shutdown();

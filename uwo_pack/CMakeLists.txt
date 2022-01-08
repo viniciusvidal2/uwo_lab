@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.0.2)
 project(uwo_pack)
 
 set(CMAKE_BUILD_TYPE "Release")
-add_compile_options(-std=c++11)
+add_compile_options(-std=c++14)
 
 find_package(catkin REQUIRED COMPONENTS
     cv_bridge
@@ -17,7 +17,7 @@ find_package(catkin REQUIRED COMPONENTS
     message_filters
 )
 
-find_package(OpenCV REQUIRED)
+find_package(OpenCV 4.2.0 REQUIRED)
 find_package(CUDA REQUIRED)
 find_package(OpenMP REQUIRED)
 find_package(Open3D REQUIRED HINTS "~/open3d_install")
@@ -43,7 +43,7 @@ include_directories(
   ${OpenCV_INCLUDE_DIRS}
   ${PCL_INCLUDE_DIRS}
   ${OpenMP_INCLUDE_DIRS}
-#  ${Open3D_INCLUDE_DIRS}
+  ${Open3D_INCLUDE_DIRS}
 )
 
 set(CUDA_NVCC_FLAGS "-arch=compute_75" CACHE STRING "nvcc flags" FORCE)
@@ -65,6 +65,6 @@ add_executable(final_mesh_node src/final_mesh.cpp)
 TARGET_LINK_LIBRARIES(final_mesh_node
 ${catkin_LIBRARIES}
 ${PCL_LIBRARIES}
-#${Open3D_LIBRARIES}
+${Open3D_LIBRARIES}
 ${OpenMP_LIBS}
 )
