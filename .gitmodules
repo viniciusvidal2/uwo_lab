@@ -7,3 +7,4 @@
 [submodule "FAST_LIO"]
 	path = FAST_LIO
 	url = https://github.com/viniciusvidal2/FAST_LIO.git
+	branch = main
