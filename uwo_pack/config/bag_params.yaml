@@ -1,0 +1,15 @@
+camera_calibration_parameters:
+    intrinsic_K: [863.4241, 0.0, 640.6808,
+                  0.0,  863.4171, 518.3392,
+                  0.0, 0.0, 1.0]
+    extrinsic_P: [1, 0, 0, 0.050166,
+                  0, 1, 0, 0.0474116,
+                  0, 0, 1, -0.0312415,
+                  0, 0, 0, 1]
+    dist_coeffs: [-0.1080, 0.1050, -1.2872e-04, 5.7923e-05, -0.0222]
+    save_cloud: false
+
+input_topics:
+    image_topic: "/camera/image_color/compressed"
+    cloud_topic: "/cloud_registered_body"
+    odometry_topic: "/Odometry"

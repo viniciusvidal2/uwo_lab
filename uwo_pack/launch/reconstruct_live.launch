@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<launch>
+    <!--List of arguments-->
+
+    <!--Launch the ZED2 camera-->
+    <include file="$(find zed_wrapper)/launch/zed2.launch"/>
+
+    <!--Launch the livox lidar driver from this workspace, with timestamp adapted to system time-->
+    <include file="$(find livox_ros_driver)/launch/livox_lidar_msg.launch"/>
+
+    <!--TF from base_link to body, must be better adjusted-->
+    <arg name="tf_body_bl" value="0 0 0 0 0 0"/>
+    <node pkg="tf" type="static_transform_publisher" name="tf_fl2z" args="$(arg tf_body_bl) /body /base_link 10"/>
+
+    <!-- Launch the fast lio node with its launch file -->
+    <include file="$(find fast_lio)/launch/mapping_mid70.launch">
+        <arg name="rviz" value="false"/>
+    </include>
+
+    <!--Launch the lidar and color fusion algorithm-->
+    <node name="project_image_pointcloud_node" type="project_cloud_cpu_node" pkg="uwo_pack" output="screen">
+        <rosparam file="$(find uwo_pack)/config/zed_params.yaml"/>
+    </node>
+
+
+
+</launch>

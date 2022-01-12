@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<launch>
+    <!--List of arguments-->
+    <arg name="bag" default="/home/vinicius/Downloads/hku_campus_seq_00"/>
+
+    <!-- Launch the fast lio node with its launch file -->
+    <include file="$(find fast_lio)/launch/mapping_avia.launch">
+        <arg name="rviz" value="false"/>
+    </include>
+
+    <!--Launch the lidar and color fusion algorithm-->
+    <node name="project_image_pointcloud_node" type="project_cloud_cpu_node" pkg="uwo_pack" output="screen">
+        <rosparam file="$(find uwo_pack)/config/bag_params.yaml"/>
+    </node>
+
+    <!--Launch the SC algorithm-->
+    <include file="$(find aloam_velodyne)/launch/fastlio_mid70.launch">
+        <arg name="rvizscpgo" value="true"/>
+    </include>
+
+    <!--Launch the mesh estimation server-->
+    <node name="final_mesh_server_node" type="final_mesh_node" pkg="uwo_pack" output="screen"/>
+
+    <!--Launch the bag file that we are interested in-->
+    <node pkg="rosbag" type="play" name="rosbag_player" output="screen" args="$(arg bag).bag"/>
+
+</launch>

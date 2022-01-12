@@ -1,0 +1,15 @@
+camera_calibration_parameters:
+    intrinsic_K: [265.2030944824219, 0.0, 340.03350830078125,
+                  0.0, 265.2030944824219, 191.35992431640625,
+                  0.0, 0.0, 1.0]
+    extrinsic_P: [1.0, 0, 0, 0.0,
+                  0, 1.0, 0, 0.0,
+                  0, 0, 1.0, 0.0,
+                  0, 0, 0, 1.0]
+    dist_coeffs: [0, 0, 0, 0, 0]
+    save_cloud: true
+
+input_topics:
+    image_topic: "/zed2/zed_node/left/image_rect_color"
+    cloud_topic: "/cloud_registered_body"
+    odometry_topic: "/Odometry"
