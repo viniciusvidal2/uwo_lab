@@ -17,6 +17,7 @@ find_package(catkin REQUIRED COMPONENTS
   image_transport
   cv_bridge
   tf
+  uwo_pack
 )
 
 #find_package(Eigen3 REQUIRED)
@@ -40,7 +41,7 @@ include_directories(
 )
 
 catkin_package(
-  CATKIN_DEPENDS geometry_msgs nav_msgs roscpp rospy std_msgs
+  CATKIN_DEPENDS geometry_msgs nav_msgs roscpp rospy std_msgs uwo_pack
   DEPENDS EIGEN3 PCL 
   INCLUDE_DIRS include
 )

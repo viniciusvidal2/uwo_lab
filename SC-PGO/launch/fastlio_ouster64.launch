@@ -12,7 +12,7 @@
     <param name="mapping_line_resolution" type="double" value="0.4"/> <!-- A-LOAM -->
     <param name="mapping_plane_resolution" type="double" value="0.8"/> <!-- A-LOAM -->
 
-    <param name="mapviz_filter_size" type="double" value="0.005"/>
+    <param name="mapviz_filter_size" type="double" value="0.05"/>
 
     <!-- SC-A-LOAM -->
     <param name="keyframe_meter_gap" type="double" value="0.5"/>

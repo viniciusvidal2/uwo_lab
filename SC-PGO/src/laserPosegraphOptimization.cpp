@@ -54,8 +54,8 @@
 
 #include "aloam_velodyne/common.h"
 #include "aloam_velodyne/tic_toc.h"
-
 #include "scancontext/Scancontext.h"
+#include "uwo_pack/cloud.h"
 
 using namespace gtsam;
 
@@ -134,6 +134,11 @@ std::string pgKITTIformat, pgScansDirectory;
 std::string odomKITTIformat;
 std::fstream pgTimeSaveStream;
 
+// Vinicius
+// Control input and service client
+ros::Time t_control_input;
+ros::ServiceClient mesh_client;
+
 std::string padZeros(int val, int num_digits = 6) {
   std::ostringstream out;
   out << std::internal << std::setfill('0') << std::setw(num_digits) << val;
@@ -190,6 +195,7 @@ void saveOptimizedVerticesKITTIformat(gtsam::Values _estimates, std::string _fil
 
 void laserOdometryHandler(const nav_msgs::Odometry::ConstPtr &_laserOdometry)
 {
+  t_control_input = ros::Time::now(); // Every time there is a new message, save current time
   mBuf.lock();
   odometryBuf.push(_laserOdometry);
   mBuf.unlock();
@@ -282,7 +288,7 @@ pcl::PointCloud<PointType>::Ptr local2global(const pcl::PointCloud<PointType>::P
     cloudOut->points[i].x = transCur(0,0) * pointFrom.x + transCur(0,1) * pointFrom.y + transCur(0,2) * pointFrom.z + transCur(0,3);
     cloudOut->points[i].y = transCur(1,0) * pointFrom.x + transCur(1,1) * pointFrom.y + transCur(1,2) * pointFrom.z + transCur(1,3);
     cloudOut->points[i].z = transCur(2,0) * pointFrom.x + transCur(2,1) * pointFrom.y + transCur(2,2) * pointFrom.z + transCur(2,3);
-    //cloudOut->points[i].intensity = pointFrom.intensity;
+//    cloudOut->points[i].intensity = pointFrom.intensity;
     cloudOut->points[i].r = pointFrom.r;
     cloudOut->points[i].g = pointFrom.g;
     cloudOut->points[i].b = pointFrom.b;
@@ -324,7 +330,6 @@ void pubPath( void )
   }
   pubOdomAftPGO.publish(odomAftPGO); // last pose
   pubPathAftPGO.publish(pathAftPGO); // poses
-//  pcl::PointCloud<PointType>::Ptr lastKf (new pcl::PointCloud<PointType>);
   sensor_msgs::PointCloud2 lastKf_msg;
   pcl::toROSMsg(*local2global(keyframeLaserClouds.back(), keyframePosesUpdated.back()), lastKf_msg);
   lastKf_msg.header.stamp = pathAftPGO.header.stamp;
@@ -403,7 +408,7 @@ pcl::PointCloud<PointType>::Ptr transformPointCloud(pcl::PointCloud<PointType>::
     cloudOut->points[i].x = transCur(0,0) * pointFrom->x + transCur(0,1) * pointFrom->y + transCur(0,2) * pointFrom->z + transCur(0,3);
     cloudOut->points[i].y = transCur(1,0) * pointFrom->x + transCur(1,1) * pointFrom->y + transCur(1,2) * pointFrom->z + transCur(1,3);
     cloudOut->points[i].z = transCur(2,0) * pointFrom->x + transCur(2,1) * pointFrom->y + transCur(2,2) * pointFrom->z + transCur(2,3);
-    //        cloudOut->points[i].intensity = pointFrom->intensity;
+//    cloudOut->points[i].intensity = pointFrom->intensity;
     cloudOut->points[i].r = pointFrom->r;
     cloudOut->points[i].g = pointFrom->g;
     cloudOut->points[i].b = pointFrom->b;
@@ -584,7 +589,7 @@ void process_pg()
       mKF.unlock();
 
       const int prev_node_idx = keyframePoses.size() - 2;
-      const int curr_node_idx = keyframePoses.size() - 1; // becuase cpp starts with 0 (actually this index could be any number, but for simple implementation, we follow sequential indexing)
+      const int curr_node_idx = keyframePoses.size() - 1; // because cpp starts with 0 (actually this index could be any number, but for simple implementation, we follow sequential indexing)
       if( ! gtSAMgraphMade /* prior node */) {
         const int init_node_idx = 0;
         gtsam::Pose3 poseOrigin = Pose6DtoGTSAMPose3(keyframePoses.at(init_node_idx));
@@ -631,9 +636,9 @@ void process_pg()
       // if want to print the current graph, use gtSAMgraph.print("\nFactor Graph:\n");
 
       // save utility
-      std::string curr_node_idx_str = padZeros(curr_node_idx);
-      pcl::io::savePCDFileBinary(pgScansDirectory + curr_node_idx_str + ".pcd", *thisKeyFrame); // scan
-      pgTimeSaveStream << timeLaser << std::endl; // path
+//      std::string curr_node_idx_str = padZeros(curr_node_idx);
+//      pcl::io::savePCDFileBinary(pgScansDirectory + curr_node_idx_str + ".pcd", *thisKeyFrame); // scan
+//      pgTimeSaveStream << timeLaser << std::endl; // path
     }
 
     // ps.
@@ -679,7 +684,8 @@ void process_lcd(void)
 
 void process_icp(void)
 {
-  while(1)
+//  while(1)
+  while(std::abs((ros::Time::now() - t_control_input).toSec()) < 6) // Vinicius - while there are new messages
   {
     while ( !scLoopICPBuf.empty() )
     {
@@ -708,6 +714,28 @@ void process_icp(void)
     std::chrono::milliseconds dura(2);
     std::this_thread::sleep_for(dura);
   }
+  // Mission is done, so call service to build the mesh
+  mBuf.lock();
+  laserCloudMapPGO->clear();
+  for (int node_idx=0; node_idx < recentIdxUpdated; node_idx++) {
+    *laserCloudMapPGO += *local2global(keyframeLaserClouds[node_idx], keyframePosesUpdated[node_idx]);
+  }
+  downSizeFilterMapPGO.setInputCloud(laserCloudMapPGO);
+  downSizeFilterMapPGO.filter(*laserCloudMapPGO);
+
+  uwo_pack::cloud srv_msg;
+  sensor_msgs::PointCloud2 cloud_msg;
+  pcl::toROSMsg(*laserCloudMapPGO, cloud_msg);
+  laserCloudMapPGO->clear();
+  srv_msg.request.cloud = cloud_msg;
+  if(mesh_client.call(srv_msg))
+    ROS_INFO("Building up the final mesh");
+  else
+    ROS_ERROR("Could not build the final mesh, check if server is working properly.");
+  mBuf.unlock();
+
+  // Finish this node
+  ros::shutdown();
 } // process_icp
 
 void process_viz_path(void)
@@ -734,8 +762,8 @@ void process_isam(void)
       cout << "running isam2 optimization ..." << endl;
       mtxPosegraph.unlock();
 
-      saveOptimizedVerticesKITTIformat(isamCurrentEstimate, pgKITTIformat); // pose
-      saveOdometryVerticesKITTIformat(odomKITTIformat); // pose
+//      saveOptimizedVerticesKITTIformat(isamCurrentEstimate, pgKITTIformat); // pose
+//      saveOdometryVerticesKITTIformat(odomKITTIformat); // pose
     }
   }
 }
@@ -783,15 +811,16 @@ int main(int argc, char **argv)
 {
   ros::init(argc, argv, "laserPGO");
   ros::NodeHandle nh;
+  ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME, ros::console::levels::Error);
 
-  nh.param<std::string>("save_directory", save_directory, "/"); // pose assignment every k m move
-  pgKITTIformat = save_directory + "optimized_poses.txt";
-  odomKITTIformat = save_directory + "odom_poses.txt";
-  pgTimeSaveStream = std::fstream(save_directory + "times.txt", std::fstream::out);
-  pgTimeSaveStream.precision(std::numeric_limits<double>::max_digits10);
-  pgScansDirectory = save_directory + "Scans/";
-  auto unused = system((std::string("exec rm -r ") + pgScansDirectory).c_str());
-  unused = system((std::string("mkdir -p ") + pgScansDirectory).c_str());
+//  nh.param<std::string>("save_directory", save_directory, "/"); // pose assignment every k m move
+//  pgKITTIformat = save_directory + "optimized_poses.txt";
+//  odomKITTIformat = save_directory + "odom_poses.txt";
+//  pgTimeSaveStream = std::fstream(save_directory + "times.txt", std::fstream::out);
+//  pgTimeSaveStream.precision(std::numeric_limits<double>::max_digits10);
+//  pgScansDirectory = save_directory + "Scans/";
+//  auto unused = system((std::string("exec rm -r ") + pgScansDirectory).c_str());
+//  unused = system((std::string("mkdir -p ") + pgScansDirectory).c_str());
 
   nh.param<double>("keyframe_meter_gap", keyframeMeterGap, 2.0); // pose assignment every k m move
   nh.param<double>("keyframe_deg_gap", keyframeDegGap, 10.0); // pose assignment every k deg rot
@@ -814,9 +843,10 @@ int main(int argc, char **argv)
   downSizeFilterICP.setLeafSize(filter_size, filter_size, filter_size);
 
   double mapVizFilterSize;
-  nh.param<double>("mapviz_filter_size", mapVizFilterSize, 0.02); // pose assignment every k frames
+  nh.param<double>("mapviz_filter_size", mapVizFilterSize, 0.1); // pose assignment every k frames
   downSizeFilterMapPGO.setLeafSize(mapVizFilterSize, mapVizFilterSize, mapVizFilterSize);
 
+  t_control_input = ros::Time::now(); // So we know when no more messages are coming
   ros::Subscriber subLaserCloudFullRes = nh.subscribe<sensor_msgs::PointCloud2>("/velodyne_cloud_registered_local", 100, laserCloudFullResHandler);
   ros::Subscriber subLaserOdometry = nh.subscribe<nav_msgs::Odometry>("/aft_mapped_to_init", 100, laserOdometryHandler);
   ros::Subscriber subGPS = nh.subscribe<sensor_msgs::NavSatFix>("/gps/fix", 100, gpsHandler);
@@ -829,6 +859,9 @@ int main(int argc, char **argv)
 
   pubLoopScanLocal = nh.advertise<sensor_msgs::PointCloud2>("/loop_scan_local", 100);
   pubLoopSubmapLocal = nh.advertise<sensor_msgs::PointCloud2>("/loop_submap_local", 100);
+
+  // Vinicius
+  mesh_client = nh.serviceClient<uwo_pack::cloud>("calculate_mesh");
 
   std::thread posegraph_slam {process_pg}; // pose graph construction
   std::thread lc_detection {process_lcd}; // loop closure detection

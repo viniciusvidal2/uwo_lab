@@ -15,6 +15,7 @@ find_package(catkin REQUIRED COMPONENTS
     pcl_conversions
     nav_msgs
     message_filters
+    message_generation
 )
 
 find_package(OpenCV 4.2.0 REQUIRED)
@@ -29,6 +30,17 @@ endif()
 if(NOT Open3D_FOUND)
     message(FATAL_ERROR "Open3D not found, please use -DCMAKE_INSTALL_PREFIX=open3d_install_dir")
 endif()
+
+# Add service files
+add_service_files(
+  FILES
+  cloud.srv
+)
+
+generate_messages(
+  DEPENDENCIES
+  sensor_msgs
+)
 
 catkin_package(
 #  INCLUDE_DIRS include

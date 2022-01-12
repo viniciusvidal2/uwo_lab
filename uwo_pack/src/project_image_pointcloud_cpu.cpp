@@ -12,7 +12,7 @@
 
 #include <nav_msgs/Odometry.h>
 #include <sensor_msgs/PointCloud2.h>
-#include <sensor_msgs/CompressedImage.h>
+#include <sensor_msgs/Image.h>
 
 #include <Eigen/Geometry>
 #include <Eigen/Dense>
@@ -70,6 +70,9 @@ ros::Publisher odom_publisher;
 // Output message for odometry
 nav_msgs::Odometry odom_msg_out;
 
+// Time control for new messages, to check if we have finished our goal
+ros::Time t_control_input;
+
 // Void to project the cloud points in the image and get the color from it
 void colorCloudCPU(PointCloud<PointT>::Ptr cloud_in, Mat image){
 #pragma omp parallel for
@@ -107,7 +110,9 @@ void colorCloudCPU(PointCloud<PointT>::Ptr cloud_in, Mat image){
 ///
 void syncCallback(const sensor_msgs::CompressedImageConstPtr &im_msg,
                   const sensor_msgs::PointCloud2ConstPtr &cl_msg,
-                  const nav_msgs::OdometryConstPtr &o_msg){
+                  const nav_msgs::OdometryConstPtr &o_msg){ 
+  t_control_input = ros::Time::now();
+
   // Update the image pointer
   cv_bridge::CvImagePtr cam_img = cv_bridge::toCvCopy(im_msg, sensor_msgs::image_encodings::BGR8);
   // Undistort the image
@@ -144,12 +149,15 @@ void processCallback(const ros::TimerEvent&){
   cl_msg_out.header.stamp = odom_msg_out.header.stamp;
 
   // Publish both odometry and cloud synchronized for the Scan Context
-  if(cloud_rgb->points.size() > 0){
-    cloud_publisher.publish(cl_msg_out);
-    odom_publisher.publish(odom_msg_out);
+  if ((ros::Time::now() - t_control_input).toSec() < 1){ // So we dont publish forever when data stops coming
+    if (cloud_rgb->points.size() > 0){      
+      ROS_INFO("Sending cloud and odometry for optimization ...");
+      cloud_publisher.publish(cl_msg_out);
+      odom_publisher.publish(odom_msg_out);
+    }
+  } else {
+    ROS_INFO("No new messages to send ...");
   }
-
-  ROS_INFO("Sending cloud and odometry for optimization ...");
 
   // Free mutex
   mtx.unlock();
@@ -198,6 +206,7 @@ int main(int argc, char **argv)
   message_filters::Subscriber<sensor_msgs::CompressedImage> im_sub(nh, "/camera/image_color/compressed", 10);
   message_filters::Subscriber<sensor_msgs::PointCloud2>  cloud_sub(nh, "/cloud_registered_body", 10);
   message_filters::Subscriber<nav_msgs::Odometry>         odom_sub(nh, "/Odometry", 10);
+  t_control_input = ros::Time::now();
 
   typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::CompressedImage,
       sensor_msgs::PointCloud2, nav_msgs::Odometry> sync_pol;
@@ -212,7 +221,7 @@ int main(int argc, char **argv)
   pass.setFilterFieldName("x");
   pass.setFilterLimits(0.0, 30.0);
 
-  ros::Timer timer = nh.createTimer(ros::Duration(0.05), processCallback);
+  ros::Timer timer = nh.createTimer(ros::Duration(0.1), processCallback);
 
   ros::MultiThreadedSpinner spinner(6);
   spinner.spin();
