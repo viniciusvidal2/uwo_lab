@@ -4,3 +4,6 @@
 [submodule "livox_ros_driver_for_R2LIVE"]
 	path = livox_ros_driver_for_R2LIVE
 	url = https://github.com/ziv-lin/livox_ros_driver_for_R2LIVE.git
+[submodule "FAST_LIO"]
+	path = FAST_LIO
+	url = https://github.com/viniciusvidal2/FAST_LIO.git
