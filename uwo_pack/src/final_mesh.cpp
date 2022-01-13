@@ -58,6 +58,9 @@ typedef PointXYZRGB PointT;
 namespace o3d = open3d;
 namespace o3g = open3d::geometry;
 
+// Directory to save the final mesh
+string save_directory;
+
 /// Compute normals in parallel
 ///
 void compute_normals_efficient(PointCloud<PointT>::Ptr in, PointCloud<PointXYZRGBNormal>::Ptr out){
@@ -141,7 +144,7 @@ bool work_cloud(uwo_pack::cloud::Request &req, uwo_pack::cloud::Response &res){
   get<0>(mesh_tuple)->RemoveVerticesByMask(indices_to_remove);
   ROS_WARN("Mesh calculated in %.6f seconds ...", (ros::Time::now() - t).toSec());
 
-  o3d::io::WriteTriangleMesh("~/Desktop/output_mesh.ply", *get<0>(mesh_tuple));
+  o3d::io::WriteTriangleMesh(save_directory+"/output_mesh.ply", *get<0>(mesh_tuple));
 
   res.answer = get<0>(mesh_tuple)->IsEmpty() ? false : true;
   return true;
@@ -152,6 +155,9 @@ int main(int argc, char **argv)
   ros::init(argc, argv, "final_mesh_node");
   ros::NodeHandle nh;
   ROS_INFO("Initialyzing node ...");
+
+  nh.getParam("/final_mesh_server_node/save_directory", save_directory);
+  cout << save_directory << endl;
 
   ros::ServiceServer server = nh.advertiseService("calculate_mesh", work_cloud);
   ROS_INFO("Server for mesh calculation is already running.");

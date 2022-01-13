@@ -1,6 +1,8 @@
 [submodule "zed-ros-wrapper"]
 	path = zed-ros-wrapper
 	url = https://github.com/viniciusvidal2/zed-ros-wrapper.git
+        branch = master
 [submodule "livox_ros_driver"]
 	path = livox_ros_driver
 	url = https://github.com/viniciusvidal2/livox_ros_driver.git
+        branch = master

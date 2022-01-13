@@ -61,6 +61,7 @@ int save_cloud_counter = 0;
 
 // Mutex for subscriber
 mutex mtx;
+mutex mtx_save;
 
 // Undistorted image
 Mat image_undistorted;
@@ -130,13 +131,21 @@ void syncCallback(const sensor_msgs::ImageConstPtr &im_msg,
 
   // Save the cloud for calibration, if we want so
   if (save_calibration){
-    *cloud_save += *cloud_in;
+    *cloud_save += *cloud_in;    
     save_cloud_counter++;
-    if (save_cloud_counter > 300){
-      io::savePLYFileBinary<PointIn>("~/Desktop/cloud_for_callibation.ply", *cloud_save);
-      cv::imwrite("~/Desktop/image_for_callibation.png", image_undistorted);
+    if (save_cloud_counter > 60){
+      mtx_save.lock();
+      // Rotation from laser to camera frame
+      Matrix3f R;
+      R = AngleAxisf(M_PI/2, Vector3f::UnitZ()) * AngleAxisf(-M_PI/2, Vector3f::UnitY());
+      Matrix4f T_lc = Matrix4f::Identity(); // From laser to camera frame (X forward to Z forward)
+      T_lc.block<3, 3>(0, 0) = R;
+      transformPointCloud<PointIn>(*cloud_save, *cloud_save, T_lc);
+      io::savePLYFileBinary<PointIn>(string(getenv("HOME"))+"/Desktop/cloud_for_callibation.ply", *cloud_save);
+      cv::imwrite(string(getenv("HOME"))+"/Desktop/image_for_callibation.png", image_undistorted);
       sleep(5);
       ROS_WARN("Everything saved for callibration !");
+      mtx_save.unlock();
       ros::shutdown();
     }
   }
@@ -167,26 +176,49 @@ void processCallback(const ros::TimerEvent&){
 
   // Publish both odometry and cloud synchronized for the Scan Context
   if ((ros::Time::now() - t_control_input).toSec() < 5){ // So we dont publish forever when data stops coming
-    if (cloud_rgb->points.size() > 0){      
-      ROS_WARN("Sending cloud and odometry for optimization ...");
+    if (cloud_rgb->points.size() > 0){
       cloud_publisher.publish(cl_msg_out);
       odom_publisher.publish(odom_msg_out);
     }
   } else {
-//    ROS_INFO("No new messages to send ...");
+    ROS_INFO("No new messages to send ...");
   }
 
   // Free mutex
   mtx.unlock();
 }
 
-void cb1(const sensor_msgs::PointCloud2ConstPtr &msg){
-  ROS_INFO("Timestamp for CLOUD: %.5f", msg->header.stamp.toSec());
-}
+//void cb1(const sensor_msgs::PointCloud2ConstPtr &msg){
+////  ROS_INFO("Timestamp for CLOUD: %.5f", msg->header.stamp.toSec());
 
-void cb2(const sensor_msgs::ImageConstPtr &msg){
-  ROS_INFO("Timestamp for IMAGE: %.5f", msg->header.stamp.toSec());
-}
+//  // Convert the message
+//  fromROSMsg(*msg, *cloud_in);
+
+//  if (true){
+//    if (save_cloud_counter < 60){
+//    *cloud_save += *cloud_in;
+//    save_cloud_counter++;
+//    }
+//  }
+//}
+
+//void cb2(const sensor_msgs::ImageConstPtr &msg){
+////  ROS_INFO("Timestamp for IMAGE: %.5f", msg->header.stamp.toSec());
+//  cv_bridge::CvImagePtr cam_img = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8);
+//  // Undistort the image
+////  undistort(cam_img->image, image_undistorted, K_, dist_coefs);
+//  cam_img->image.copyTo(image_undistorted);
+//  if (true){
+//    if (save_cloud_counter >= 60){
+//      ROS_INFO("Saving image!");
+//      io::savePLYFileBinary<PointIn>("/home/vinicius/Desktop/cloud_for_callibation.ply", *cloud_save);
+//      cv::imwrite("/home/vinicius/Desktop/image_for_callibation.png", image_undistorted);
+//      sleep(5);
+//      ROS_WARN("Everything saved for callibration !");
+//      ros::shutdown();
+//    }
+//  }
+//}
 
 
 int main(int argc, char **argv)
@@ -248,8 +280,8 @@ int main(int argc, char **argv)
     ROS_WARN("Waiting for the image topic to show up ...");
   }
 
-  ros::Subscriber sub1  = nh.subscribe(cloud_topic, 100, &cb1);
-  ros::Subscriber sub2  = nh.subscribe(image_topic, 100, &cb2);
+//  ros::Subscriber sub1  = nh.subscribe(cloud_topic, 100, &cb1);
+//  ros::Subscriber sub2  = nh.subscribe(image_topic, 100, &cb2);
 
   typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image,
       sensor_msgs::PointCloud2, nav_msgs::Odometry> sync_pol;

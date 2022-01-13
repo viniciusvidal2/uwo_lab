@@ -1,13 +1,13 @@
 camera_calibration_parameters:
-    intrinsic_K: [265.2030944824219, 0.0, 340.03350830078125,
-                  0.0, 265.2030944824219, 191.35992431640625,
-                  0.0, 0.0, 1.0]
-    extrinsic_P: [1.0, 0, 0, 0.0,
-                  0, 1.0, 0, 0.0,
-                  0, 0, 1.0, 0.0,
+    intrinsic_K: [534.4424, -0.0118, 631.33,
+                  -0.0311, 521.9, 364.08,
+                  0, 0, 1]
+    extrinsic_P: [1.0, 0, 0, -0.0227,
+                  0, 1.0, 0, -0.0111,
+                  0, 0, 1.0, -0.0662,
                   0, 0, 0, 1.0]
     dist_coeffs: [0, 0, 0, 0, 0]
-    save_cloud: true
+    save_cloud: false
 
 input_topics:
     image_topic: "/zed2/zed_node/left/image_rect_color"
