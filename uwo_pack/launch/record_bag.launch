@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<launch>
+<!--Arguments-->
+<arg name="bag_folder" default="$(env HOME)/Desktop"/>
+<arg name="bag_name" default="record"/>
+
+<arg name="image_topic" default="/zed2/zed_node/left/image_rect_color/compressed"/>
+<arg name="cloud_topic" default="/livox/lidar"/>
+<arg name="imu_topic" default="/zed2/zed_node/imu/data"/>
+
+<!--ZED2 camera-->
+<include file="$(find zed_wrapper)/launch/zed2.launch"/>
+
+<!--Livox lidar driver from this workspace, with timestamp adapted to system time-->
+<include file="$(find livox_ros_driver)/launch/livox_lidar_msg.launch"/>
+
+<!--Rosbag node-->
+<node pkg="rosbag" type="record" name="rosbag_record_data"
+       args="record -o $(arg bag_folder)/$(arg bag_name).bag $(arg image_topic) $(arg imu_topic) $(arg cloud_topic)">
+</node>
+</launch>

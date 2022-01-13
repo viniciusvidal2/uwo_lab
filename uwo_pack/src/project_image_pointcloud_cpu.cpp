@@ -96,38 +96,37 @@ void colorCloudCPU(PointCloud<PointT>::Ptr cloud_in, Mat image){
       }
     }
   }
-  // Points that were not projected should be removed
+  // Points that were either not projected or come from noise should be removed
   ExtractIndices<PointXYZRGB> extract;
-  PointIndices::Ptr inliers (new PointIndices);
+  PointIndices::Ptr outliers (new PointIndices);
   for (size_t i = 0; i < cloud_in->size(); i++){
-    if (cloud_in->points[i].r == 0 && cloud_in->points[i].g == 0 && cloud_in->points[i].b == 0)
-      inliers->indices.emplace_back(i);
+    if ((cloud_in->points[i].r == 0 && cloud_in->points[i].g == 0 && cloud_in->points[i].b == 0) ||
+        (cloud_in->points[i].x == 0 && cloud_in->points[i].y == 0 && cloud_in->points[i].z == 0))
+      outliers->indices.emplace_back(i);
   }
   extract.setInputCloud(cloud_in);
-  extract.setIndices(inliers);
+  extract.setIndices(outliers);
   extract.setNegative(true);
   extract.filter(*cloud_in);
 }
 
 /// Sync callback
 ///
-void syncCallback(const sensor_msgs::ImageConstPtr &im_msg,
-                  const sensor_msgs::PointCloud2ConstPtr &cl_msg,
+void syncCallback(const sensor_msgs::PointCloud2ConstPtr &cl_msg,
                   const nav_msgs::OdometryConstPtr &o_msg){ 
   t_control_input = ros::Time::now();
 
   // Update the image pointer
-  cv_bridge::CvImagePtr cam_img = cv_bridge::toCvCopy(im_msg, sensor_msgs::image_encodings::BGR8);
+//  cv_bridge::CvImagePtr cam_img = cv_bridge::toCvCopy(im_msg, sensor_msgs::image_encodings::BGR8);
   // Undistort the image
 //  undistort(cam_img->image, image_undistorted, K_, dist_coefs);
-  cam_img->image.copyTo(image_undistorted);
+//  cam_img->image.copyTo(image_undistorted);
 
   // Convert the message
   fromROSMsg(*cl_msg, *cloud_in);
 
   // Get the Odometry msg
   odom_msg_out = *o_msg;
-  ROS_INFO("Got new data!!");
 
   // Save the cloud for calibration, if we want so
   if (save_calibration){
@@ -189,7 +188,7 @@ void processCallback(const ros::TimerEvent&){
 }
 
 //void cb1(const sensor_msgs::PointCloud2ConstPtr &msg){
-////  ROS_INFO("Timestamp for CLOUD: %.5f", msg->header.stamp.toSec());
+//  ROS_INFO("Timestamp for CLOUD: %.5f", msg->header.stamp.toSec());
 
 //  // Convert the message
 //  fromROSMsg(*msg, *cloud_in);
@@ -202,30 +201,22 @@ void processCallback(const ros::TimerEvent&){
 //  }
 //}
 
-//void cb2(const sensor_msgs::ImageConstPtr &msg){
-////  ROS_INFO("Timestamp for IMAGE: %.5f", msg->header.stamp.toSec());
-//  cv_bridge::CvImagePtr cam_img = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8);
-//  // Undistort the image
-////  undistort(cam_img->image, image_undistorted, K_, dist_coefs);
-//  cam_img->image.copyTo(image_undistorted);
-//  if (true){
-//    if (save_cloud_counter >= 60){
-//      ROS_INFO("Saving image!");
-//      io::savePLYFileBinary<PointIn>("/home/vinicius/Desktop/cloud_for_callibation.ply", *cloud_save);
-//      cv::imwrite("/home/vinicius/Desktop/image_for_callibation.png", image_undistorted);
-//      sleep(5);
-//      ROS_WARN("Everything saved for callibration !");
-//      ros::shutdown();
-//    }
-//  }
-//}
+/// Image callback
+///
+void imageCallback(const sensor_msgs::CompressedImageConstPtr &msg){
+  cv_bridge::CvImagePtr cam_img = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8);
+  // Undistort the image
+//  undistort(cam_img->image, image_undistorted, K_, dist_coefs);
+  cam_img->image.copyTo(image_undistorted);
+
+}
 
 
 int main(int argc, char **argv)
 {
   ros::init(argc, argv, "project_image_pointcloud_node");
   ros::NodeHandle nh;
-  ros::NodeHandle n("~");
+  ros::NodeHandle n_("~");
   ROS_INFO("Initialyzing node ...");
 
   // Initialize global point cloud pointer
@@ -237,10 +228,10 @@ int main(int argc, char **argv)
   // Initialize matrices according to camera parameters
   Matrix3f K;
   vector<float> K_vec(9, 0.0), P_vec(16, 0.0), dist_coefs_(5, 0.0);
-  n.param<vector<float>>("camera_calibration_parameters/intrinsic_K", K_vec, vector<float>());
-  n.param<vector<float>>("camera_calibration_parameters/extrinsic_P", P_vec, vector<float>());
-  n.param<vector<float>>("camera_calibration_parameters/dist_coeffs", dist_coefs_, vector<float>());
-  n.param<bool>("camera_calibration_parameters/save_cloud", save_calibration, false);
+  n_.param<vector<float>>("camera_calibration_parameters/intrinsic_K", K_vec, vector<float>());
+  n_.param<vector<float>>("camera_calibration_parameters/extrinsic_P", P_vec, vector<float>());
+  n_.param<vector<float>>("camera_calibration_parameters/dist_coeffs", dist_coefs_, vector<float>());
+  n_.param<bool>("camera_calibration_parameters/save_cloud", save_calibration, false);
   K << K_vec[0], K_vec[1], K_vec[2],
       K_vec[3], K_vec[4], K_vec[5],
       K_vec[6], K_vec[7], K_vec[8];
@@ -267,28 +258,29 @@ int main(int argc, char **argv)
 
   // Initialize sync subscribers
   string image_topic, cloud_topic, odometry_topic;
-  n.param<string>("input_topics/image_topic", image_topic, "/camera/image_color/compressed");
-  n.param<string>("input_topics/cloud_topic", cloud_topic, "/cloud_registered_body");
-  n.param<string>("input_topics/odometry_topic", odometry_topic, "/Odometry");
-  message_filters::Subscriber<sensor_msgs::Image> im_sub(nh, image_topic, 10);
-  message_filters::Subscriber<sensor_msgs::PointCloud2>  cloud_sub(nh, cloud_topic, 10);
-  message_filters::Subscriber<nav_msgs::Odometry>         odom_sub(nh, odometry_topic, 10);
+  n_.param<string>("input_topics/image_topic", image_topic, "/camera/image_color/compressed");
+  n_.param<string>("input_topics/cloud_topic", cloud_topic, "/cloud_registered_body");
+  n_.param<string>("input_topics/odometry_topic", odometry_topic, "/Odometry");
+
+  ros::Subscriber im_sub = nh.subscribe(image_topic, 100, &imageCallback);
   ros::Rate r(5);
-  while (im_sub.getSubscriber().getNumPublishers() < 1){
-    t_control_input = ros::Time::now();
+  while (im_sub.getNumPublishers() < 1){
     r.sleep();
     ROS_WARN("Waiting for the image topic to show up ...");
   }
+//  message_filters::Subscriber<sensor_msgs::Image> im_sub(nh, image_topic, 10);
+  message_filters::Subscriber<sensor_msgs::PointCloud2> cloud_sub(nh, cloud_topic, 10);
+  message_filters::Subscriber<nav_msgs::Odometry>       odom_sub(nh, odometry_topic, 10);
+
 
 //  ros::Subscriber sub1  = nh.subscribe(cloud_topic, 100, &cb1);
-//  ros::Subscriber sub2  = nh.subscribe(image_topic, 100, &cb2);
 
-  typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image,
-      sensor_msgs::PointCloud2, nav_msgs::Odometry> sync_pol;
-  message_filters::Synchronizer<sync_pol> sync(sync_pol(1000), im_sub, cloud_sub, odom_sub);
-  sync.registerCallback(boost::bind(&syncCallback, _1, _2, _3));
+  typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::PointCloud2, nav_msgs::Odometry> sync_pol;
+  message_filters::Synchronizer<sync_pol> sync(sync_pol(1000), cloud_sub, odom_sub);
+  sync.registerCallback(boost::bind(&syncCallback, _1, _2));
   ros::SubscribeOptions ops;
   ops.allow_concurrent_callbacks = true;
+  t_control_input = ros::Time::now();
 
   ROS_INFO("Listening to sensors data ...");
 

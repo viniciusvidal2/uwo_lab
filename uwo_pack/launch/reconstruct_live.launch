@@ -29,7 +29,7 @@
     </include>
 
     <!--Mesh calculation server node-->
-    <node name="final_mesh_server_node" type="final_mesh_node" pkg="uwo_pack" output="screen">
+<!--    <node name="final_mesh_server_node" type="final_mesh_node" pkg="uwo_pack" output="screen">
         <param name="save_directory" value="$(arg save_directory)"/>
-    </node>
+    </node>-->
 </launch>
