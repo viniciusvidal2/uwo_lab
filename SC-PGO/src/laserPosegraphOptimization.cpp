@@ -138,6 +138,7 @@ std::fstream pgTimeSaveStream;
 // Control input and service client
 ros::Time t_control_input;
 ros::ServiceClient mesh_client;
+ros::Subscriber subLaserOdometry;
 
 std::string padZeros(int val, int num_digits = 6) {
   std::ostringstream out;
@@ -685,7 +686,7 @@ void process_lcd(void)
 void process_icp(void)
 {
 //  while(1)
-  while(std::abs((ros::Time::now() - t_control_input).toSec()) < 6) // Vinicius - while there are new messages
+  while(subLaserOdometry.getNumPublishers() > 0 || std::abs((ros::Time::now() - t_control_input).toSec()) < 30) // Vinicius - while there are new messages
   {
     while ( !scLoopICPBuf.empty() )
     {
@@ -848,7 +849,7 @@ int main(int argc, char **argv)
 
   t_control_input = ros::Time::now(); // So we know when no more messages are coming
   ros::Subscriber subLaserCloudFullRes = nh.subscribe<sensor_msgs::PointCloud2>("/velodyne_cloud_registered_local", 100, laserCloudFullResHandler);
-  ros::Subscriber subLaserOdometry = nh.subscribe<nav_msgs::Odometry>("/aft_mapped_to_init", 100, laserOdometryHandler);
+  subLaserOdometry = nh.subscribe<nav_msgs::Odometry>("/aft_mapped_to_init", 100, laserOdometryHandler);
   ros::Subscriber subGPS = nh.subscribe<sensor_msgs::NavSatFix>("/gps/fix", 100, gpsHandler);
 
   pubOdomAftPGO = nh.advertise<nav_msgs::Odometry>("/aft_pgo_odom", 100);
@@ -862,6 +863,11 @@ int main(int argc, char **argv)
 
   // Vinicius
   mesh_client = nh.serviceClient<uwo_pack::cloud>("calculate_mesh");
+  ros::Rate r(2);
+  while (subLaserOdometry.getNumPublishers() == 0){
+    ROS_INFO("SC node still waiting for cloud and odometry to start ...");
+    r.sleep();
+  }
 
   std::thread posegraph_slam {process_pg}; // pose graph construction
   std::thread lc_detection {process_lcd}; // loop closure detection

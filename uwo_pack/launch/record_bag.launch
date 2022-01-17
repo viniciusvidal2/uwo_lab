@@ -11,7 +11,7 @@
 <!--ZED2 camera-->
 <include file="$(find zed_wrapper)/launch/zed2.launch"/>
 
-<!--Livox lidar driver from this workspace, with timestamp adapted to system time-->
+<!--Livox lidar driver from this workspace-->
 <include file="$(find livox_ros_driver)/launch/livox_lidar_msg.launch"/>
 
 <!--Rosbag node-->

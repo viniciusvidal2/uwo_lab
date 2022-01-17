@@ -66,6 +66,9 @@ mutex mtx_save;
 // Undistorted image
 Mat image_undistorted;
 
+// Subscriber for image
+ros::Subscriber im_sub;
+
 // Publishers
 ros::Publisher cloud_publisher;
 ros::Publisher odom_publisher;
@@ -116,12 +119,6 @@ void syncCallback(const sensor_msgs::PointCloud2ConstPtr &cl_msg,
                   const nav_msgs::OdometryConstPtr &o_msg){ 
   t_control_input = ros::Time::now();
 
-  // Update the image pointer
-//  cv_bridge::CvImagePtr cam_img = cv_bridge::toCvCopy(im_msg, sensor_msgs::image_encodings::BGR8);
-  // Undistort the image
-//  undistort(cam_img->image, image_undistorted, K_, dist_coefs);
-//  cam_img->image.copyTo(image_undistorted);
-
   // Convert the message
   fromROSMsg(*cl_msg, *cloud_in);
 
@@ -150,7 +147,6 @@ void syncCallback(const sensor_msgs::PointCloud2ConstPtr &cl_msg,
   }
 }
 
-
 /// Process callback
 /// process data and publish it
 ///
@@ -174,41 +170,29 @@ void processCallback(const ros::TimerEvent&){
   cl_msg_out.header.stamp = odom_msg_out.header.stamp;
 
   // Publish both odometry and cloud synchronized for the Scan Context
-  if ((ros::Time::now() - t_control_input).toSec() < 5){ // So we dont publish forever when data stops coming
-    if (cloud_rgb->points.size() > 0){
-      cloud_publisher.publish(cl_msg_out);
-      odom_publisher.publish(odom_msg_out);
+  if (im_sub.getNumPublishers() > 0){
+    if ((ros::Time::now() - t_control_input).toSec() < 1){ // So we dont publish forever when data stops coming
+      if (cloud_rgb->points.size() > 0){
+        cloud_publisher.publish(cl_msg_out);
+        odom_publisher.publish(odom_msg_out);
+      }
     }
   } else {
-    ROS_INFO("No new messages to send ...");
+    ROS_WARN("No new messages to send, closing node ...");
+    ros::shutdown();
   }
 
   // Free mutex
   mtx.unlock();
 }
 
-//void cb1(const sensor_msgs::PointCloud2ConstPtr &msg){
-//  ROS_INFO("Timestamp for CLOUD: %.5f", msg->header.stamp.toSec());
-
-//  // Convert the message
-//  fromROSMsg(*msg, *cloud_in);
-
-//  if (true){
-//    if (save_cloud_counter < 60){
-//    *cloud_save += *cloud_in;
-//    save_cloud_counter++;
-//    }
-//  }
-//}
-
 /// Image callback
 ///
 void imageCallback(const sensor_msgs::CompressedImageConstPtr &msg){
   cv_bridge::CvImagePtr cam_img = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8);
   // Undistort the image
-//  undistort(cam_img->image, image_undistorted, K_, dist_coefs);
-  cam_img->image.copyTo(image_undistorted);
-
+  undistort(cam_img->image, image_undistorted, K_, dist_coefs);
+//  cam_img->image.copyTo(image_undistorted);
 }
 
 
@@ -262,18 +246,14 @@ int main(int argc, char **argv)
   n_.param<string>("input_topics/cloud_topic", cloud_topic, "/cloud_registered_body");
   n_.param<string>("input_topics/odometry_topic", odometry_topic, "/Odometry");
 
-  ros::Subscriber im_sub = nh.subscribe(image_topic, 100, &imageCallback);
+  im_sub = nh.subscribe(image_topic, 100, &imageCallback);
   ros::Rate r(5);
   while (im_sub.getNumPublishers() < 1){
     r.sleep();
     ROS_WARN("Waiting for the image topic to show up ...");
   }
-//  message_filters::Subscriber<sensor_msgs::Image> im_sub(nh, image_topic, 10);
   message_filters::Subscriber<sensor_msgs::PointCloud2> cloud_sub(nh, cloud_topic, 10);
   message_filters::Subscriber<nav_msgs::Odometry>       odom_sub(nh, odometry_topic, 10);
-
-
-//  ros::Subscriber sub1  = nh.subscribe(cloud_topic, 100, &cb1);
 
   typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::PointCloud2, nav_msgs::Odometry> sync_pol;
   message_filters::Synchronizer<sync_pol> sync(sync_pol(1000), cloud_sub, odom_sub);

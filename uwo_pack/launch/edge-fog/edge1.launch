@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<launch>
+    <!--Just launch the basic sensor drivers for edge in this approach-->
+
+    <!--ZED2 camera-->
+    <include file="$(find zed_wrapper)/launch/zed2.launch"/>
+    <!--Livox lidar driver from this workspace, with timestamp adapted to system time-->
+    <include file="$(find livox_ros_driver)/launch/livox_lidar_msg.launch"/>
+</launch>
