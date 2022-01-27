@@ -17,7 +17,11 @@ find_package(catkin REQUIRED COMPONENTS
     message_filters
 )
 
-find_package(OpenCV 4.2.0 REQUIRED)
+find_package(OpenCV 4.2.0 QUIET)
+if(NOT OpenCV_FOUND)
+  message(STATUS "Compiling in edge device, earlier OpenCV version ...")
+  find_package(OpenCV 4.1.1) # This is for the edge with ros melodic
+endif()
 find_package(CUDA REQUIRED)
 find_package(OpenMP REQUIRED)
 if(OPENMP_FOUND)
