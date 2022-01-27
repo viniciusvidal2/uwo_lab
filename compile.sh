@@ -6,22 +6,19 @@ source /opt/ros/melodic/setup.bash
 source devel/setup.bash
 
 # Go through all the packages, sleep in between
-catkin_make --pkg livox_ros_driver
+catkin_make -DCMAKE_BUILD_TYPE=Release --pkg livox_ros_driver
 sleep 1s
 
-catkin_make --pkg zed_ros
+catkin_make -DCMAKE_BUILD_TYPE=Release --pkg zed_ros
 sleep 1s
 
-catkin_make --pkg zed_wrapper zed_interfaces zed_nodelets
+catkin_make -DCMAKE_BUILD_TYPE=Release --pkg zed_wrapper zed_interfaces zed_nodelets
 sleep 1s
 
-catkin_make --pkg realsense2_camera orb_slam2_ros
+catkin_make -DCMAKE_BUILD_TYPE=Release --pkg fast_lio
 sleep 1s
 
-catkin_make --pkg fast_lio 
+catkin_make -DCMAKE_BUILD_TYPE=Release --pkg uwo_pack
 sleep 1s
 
-catkin_make --pkg uwo_pack 
-sleep 1s
-
-catkin_make --pkg aloam_velodyne
+catkin_make -DCMAKE_BUILD_TYPE=Release --pkg aloam_velodyne

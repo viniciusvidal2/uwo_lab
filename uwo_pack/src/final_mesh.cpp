@@ -31,6 +31,8 @@
 #include <pcl/filters/extract_indices.h>
 #include <pcl/filters/statistical_outlier_removal.h>
 #include <pcl/filters/voxel_grid.h>
+#include <pcl/kdtree/kdtree_flann.h>
+#include <pcl/kdtree/kdtree.h>
 
 #include "open3d/geometry/PointCloud.h"
 #include "open3d/geometry/BoundingVolume.h"
@@ -43,6 +45,7 @@
 #include "open3d/Open3D.h"
 #include "open3d/geometry/MeshBase.h"
 #include "open3d/geometry/TriangleMesh.h"
+#include "open3d/pipelines/registration/ColoredICP.h"
 
 #include "uwo_pack/cloud.h"
 
@@ -64,21 +67,62 @@ string save_directory;
 /// Compute normals in parallel
 ///
 void compute_normals_efficient(PointCloud<PointT>::Ptr in, PointCloud<PointXYZRGBNormal>::Ptr out){
-  // Inicia estimador de normais
+  // Initi normal estimator
   search::KdTree<PointT>::Ptr tree (new search::KdTree<PointT>());
   NormalEstimationOMP<PointT, Normal> ne;
   ne.setInputCloud(in);
   ne.setSearchMethod(tree);
   ne.setKSearch(30);
   ne.setNumberOfThreads(100);
-  // Nuvem de normais calculada
+  // Normals cloud
   PointCloud<Normal>::Ptr normals (new PointCloud<Normal>());
   ne.compute(*normals);
-  // Adiciona saida na nuvem concatenada PointTN
+  // Add cloud components
   concatenateFields(*in, *normals, *out);
-  // Filtra por normais problematicas
+  // Filter NaN normals
   std::vector<int> indicesnan;
   removeNaNNormalsFromPointCloud(*out, *out, indicesnan);
+}
+
+/// Check normals directions
+///
+void check_normals_orientations(PointCloud<PointXYZRGBNormal>::Ptr in, vector<double> xs, vector<double> ys, vector<double> zs){
+  // Create point cloud from odometry data
+  PointCloud<PointXYZ>::Ptr odom (new PointCloud<PointXYZ>);
+  odom->resize(xs.size());
+#pragma omp parallel for
+  for (size_t i=0; i<xs.size(); i++) {
+    odom->points[i].x = xs[i];
+    odom->points[i].y = ys[i];
+    odom->points[i].z = zs[i];
+  }
+
+  // Find closest point with kdtree search
+  KdTreeFLANN<PointXYZ>::Ptr tree (new KdTreeFLANN<PointXYZ>);
+  tree->setInputCloud(odom);
+
+  // For each point in original point cloud
+#pragma omp parallel for
+  for (size_t i=0; i<in->size(); i++) {
+    vector<int> indices;
+    vector<float> dists;
+    PointXYZ p;
+    p.x = in->points[i].x; p.y = in->points[i].y; p.z = in->points[i].z;
+    tree->nearestKSearch(p, 1, indices, dists);
+    // Calculate angle between direction and current normal
+    Eigen::Vector3f normal, cp, C;
+    C << odom->points[indices[0]].x, odom->points[indices[0]].y, odom->points[indices[0]].z;
+    normal << in->points[i].normal_x, in->points[i].normal_y, in->points[i].normal_z;
+    cp << C(0) - p.x, C(1) - p.y, C(2) - p.z;
+    float cos_theta = (normal.dot(cp))/(normal.norm()*cp.norm());
+
+    // If pointing to the opposite side, twist it
+    if(cos_theta <= 0){
+      in->points[i].normal_x = -in->points[i].normal_x;
+      in->points[i].normal_y = -in->points[i].normal_y;
+      in->points[i].normal_z = -in->points[i].normal_z;
+    }
+  }
 }
 
 /// Convert PCL cloud to Open3D
@@ -93,15 +137,28 @@ o3g::PointCloud convertPCL2Open3D(PointCloud<PointXYZRGBNormal>::Ptr c){
     ptc.points_[i][0] = double(c->points[i].x);
     ptc.points_[i][1] = double(c->points[i].y);
     ptc.points_[i][2] = double(c->points[i].z);
-    ptc.colors_[i][0] = double(c->points[i].b)/255.0;
+    ptc.colors_[i][0] = double(c->points[i].r)/255.0;
     ptc.colors_[i][1] = double(c->points[i].g)/255.0;
-    ptc.colors_[i][2] = double(c->points[i].r)/255.0;
+    ptc.colors_[i][2] = double(c->points[i].b)/255.0;
     ptc.normals_[i][0] = double(c->points[i].normal_x);
     ptc.normals_[i][1] = double(c->points[i].normal_y);
     ptc.normals_[i][2] = double(c->points[i].normal_z);
   }
   ptc.NormalizeNormals();
   return ptc;
+}
+void convertOpen3D2PCL(PointCloud<PointXYZRGBNormal>::Ptr c, o3g::PointCloud o){
+  c->clear();
+  c->resize(o.points_.size());
+#pragma omp parallel for
+  for (size_t i=0; i<c->points.size(); i++) {
+    c->points[i].x = o.points_[i][0];
+    c->points[i].y = o.points_[i][1];
+    c->points[i].z = o.points_[i][2];
+    c->points[i].r = int(o.colors_[i][0]*255);
+    c->points[i].g = int(o.colors_[i][1]*255);
+    c->points[i].b = int(o.colors_[i][2]*255);
+  }
 }
 
 vector<bool> find_low_densities(vector<double> densities, double thresh){
@@ -128,6 +185,11 @@ bool work_cloud(uwo_pack::cloud::Request &req, uwo_pack::cloud::Response &res){
   compute_normals_efficient(cloud, cloud_normals);
   ROS_WARN("Normals calculated in %.6f seconds ...", (ros::Time::now() - t).toSec());
 
+  t = ros::Time::now();
+  ROS_INFO("Checking normals orientation ...");
+  check_normals_orientations(cloud_normals, req.xs, req.ys, req.zs);
+  ROS_WARN("Normals oriented in %.6f seconds ...", (ros::Time::now() - t).toSec());
+
   // Convert from PCL to Open3D
   t = ros::Time::now();
   ROS_INFO("Converting PCL to Open3d");
@@ -138,9 +200,9 @@ bool work_cloud(uwo_pack::cloud::Request &req, uwo_pack::cloud::Response &res){
   ///// Calculate with no processing, only for comparison
   ROS_INFO("Calculating the mesh for whole point cloud, for comparison ...");
   t = ros::Time::now();
-  auto mesh_tuple = o3g::TriangleMesh::CreateFromPointCloudPoisson(o3d_cloud, 8);
+  auto mesh_tuple = o3g::TriangleMesh::CreateFromPointCloudPoisson(o3d_cloud, 10);
   o3d_cloud.Clear();
-  vector<bool> indices_to_remove = find_low_densities(get<1>(mesh_tuple), 0.05);
+  vector<bool> indices_to_remove = find_low_densities(get<1>(mesh_tuple), 0.09);
   get<0>(mesh_tuple)->RemoveVerticesByMask(indices_to_remove);
   ROS_WARN("Mesh calculated in %.6f seconds ...", (ros::Time::now() - t).toSec());
 

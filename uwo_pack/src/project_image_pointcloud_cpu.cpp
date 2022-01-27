@@ -78,6 +78,7 @@ nav_msgs::Odometry odom_msg_out;
 
 // Time control for new messages, to check if we have finished our goal
 ros::Time t_control_input;
+bool new_data = false;
 
 // Void to project the cloud points in the image and get the color from it
 void colorCloudCPU(PointCloud<PointT>::Ptr cloud_in, Mat image){
@@ -145,45 +146,51 @@ void syncCallback(const sensor_msgs::PointCloud2ConstPtr &cl_msg,
       ros::shutdown();
     }
   }
+
+  new_data = true;
 }
 
 /// Process callback
 /// process data and publish it
 ///
 void processCallback(const ros::TimerEvent&){
-  // Lock mutex
-  mtx.lock();
+  if(new_data){
+    // Lock mutex
+    mtx.lock();
 
-  pass.setInputCloud(cloud_in);
-  pass.filter(*cloud_in);
+    pass.setInputCloud(cloud_in);
+    pass.filter(*cloud_in);
 
-  // Copy the point cloud to the one with RGB
-  copyPointCloud(*cloud_in, *cloud_rgb);
+    // Copy the point cloud to the one with RGB
+    copyPointCloud(*cloud_in, *cloud_rgb);
 
-  // Color cloud
-  colorCloudCPU(cloud_rgb, image_undistorted);
+    // Color cloud
+    colorCloudCPU(cloud_rgb, image_undistorted);
 
-  // Copy into ROS message to be published
-  sensor_msgs::PointCloud2 cl_msg_out;
-  toROSMsg(*cloud_rgb, cl_msg_out);
-  cl_msg_out.header.frame_id = CLOUD_FRAME;
-  cl_msg_out.header.stamp = odom_msg_out.header.stamp;
+    // Copy into ROS message to be published
+    sensor_msgs::PointCloud2 cl_msg_out;
+    toROSMsg(*cloud_rgb, cl_msg_out);
+    cl_msg_out.header.frame_id = CLOUD_FRAME;
+    cl_msg_out.header.stamp = odom_msg_out.header.stamp;
 
-  // Publish both odometry and cloud synchronized for the Scan Context
-  if (im_sub.getNumPublishers() > 0){
-    if ((ros::Time::now() - t_control_input).toSec() < 1){ // So we dont publish forever when data stops coming
-      if (cloud_rgb->points.size() > 0){
-        cloud_publisher.publish(cl_msg_out);
-        odom_publisher.publish(odom_msg_out);
+    // Publish both odometry and cloud synchronized for the Scan Context
+    if (im_sub.getNumPublishers() > 0){
+      if ((ros::Time::now() - t_control_input).toSec() < 1){ // So we dont publish forever when data stops coming
+        if (cloud_rgb->points.size() > 0){
+          cloud_publisher.publish(cl_msg_out);
+          odom_publisher.publish(odom_msg_out);
+        }
       }
+    } else {
+      ROS_WARN("No new messages to send, closing node ...");
+      ros::shutdown();
     }
-  } else {
-    ROS_WARN("No new messages to send, closing node ...");
-    ros::shutdown();
-  }
 
-  // Free mutex
-  mtx.unlock();
+    new_data = false;
+
+    // Free mutex
+    mtx.unlock();
+  }
 }
 
 /// Image callback
@@ -237,8 +244,8 @@ int main(int argc, char **argv)
   P = P*T_lc;
 
   // Initialize publishers
-  cloud_publisher = nh.advertise<sensor_msgs::PointCloud2>("/edge/cloud_colored", 10000);
-  odom_publisher  = nh.advertise<nav_msgs::Odometry>("/edge/odometry", 10000);
+  cloud_publisher = nh.advertise<sensor_msgs::PointCloud2>("/cloud_colored", 10000);
+  odom_publisher  = nh.advertise<nav_msgs::Odometry>("/odometry", 10000);
 
   // Initialize sync subscribers
   string image_topic, cloud_topic, odometry_topic;
@@ -252,11 +259,11 @@ int main(int argc, char **argv)
     r.sleep();
     ROS_WARN("Waiting for the image topic to show up ...");
   }
-  message_filters::Subscriber<sensor_msgs::PointCloud2> cloud_sub(nh, cloud_topic, 10);
-  message_filters::Subscriber<nav_msgs::Odometry>       odom_sub(nh, odometry_topic, 10);
+  message_filters::Subscriber<sensor_msgs::PointCloud2> cloud_sub(nh, cloud_topic, 10000);
+  message_filters::Subscriber<nav_msgs::Odometry>       odom_sub(nh, odometry_topic, 10000);
 
   typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::PointCloud2, nav_msgs::Odometry> sync_pol;
-  message_filters::Synchronizer<sync_pol> sync(sync_pol(1000), cloud_sub, odom_sub);
+  message_filters::Synchronizer<sync_pol> sync(sync_pol(10000), cloud_sub, odom_sub);
   sync.registerCallback(boost::bind(&syncCallback, _1, _2));
   ros::SubscribeOptions ops;
   ops.allow_concurrent_callbacks = true;

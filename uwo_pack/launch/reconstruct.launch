@@ -4,11 +4,12 @@
     <arg name="save_directory" default="$(env HOME)/Desktop"/>
     <arg name="visualize" default="true"/>
     <arg name="source_from_bag" default="true"/>
-    <arg name="bag" default="$(env HOME)/Desktop/record_2022-01-14-14-56-13"/>
+    <arg name="bag" default="$(env HOME)/Desktop/corredor1"/>
+    <arg name="robot_name" default="edge"/>
 
     <!--If playing bag, just use the rosbag package-->
     <group if="$(arg source_from_bag)">
-        <node pkg="rosbag" type="play" name="rosbag_player" output="screen" args="$(arg bag).bag --clock"/>
+        <node pkg="rosbag" type="play" name="rosbag_player" output="screen" args="$(arg bag).bag --clock "/>
     </group>
 
     <!--Otherwise, bring up the sensors-->
@@ -30,19 +31,24 @@
     </include>
 
     <!--Lidar and color fusion algorithm-->
-    <node name="project_image_pointcloud_node" type="project_cloud_cpu_node" pkg="uwo_pack" output="screen">
+    <node name="project_image_pointcloud_node" type="project_cloud_cpu_node" pkg="uwo_pack" ns="$(arg robot_name)" output="screen">
         <rosparam file="$(find uwo_pack)/config/zed_params.yaml"/>
+        <remap from="/cloud_colored" to="/$(arg robot_name)/cloud_colored"/>
+        <remap from="/odometry" to="/$(arg robot_name)/odometry"/>
     </node>
 
     <!--Scan context algorithm to detect loop closure-->
-    <include file="$(find aloam_velodyne)/launch/fastlio_mid70.launch">
+    <include file="$(find aloam_velodyne)/launch/sc_mid70.launch">
         <arg name="rvizscpgo" value="false"/>
     </include>
+<!--    <include file="$(find aloam_velodyne)/launch/fastlio_ouster64.launch">
+        <arg name="rvizscpgo" value="false"/>
+    </include>-->
 
     <!--Mesh calculation server node-->
-<!--    <node name="final_mesh_server_node" type="final_mesh_node" pkg="uwo_pack" output="screen">
+    <node name="final_mesh_server_node" type="final_mesh_node" pkg="uwo_pack" output="screen">
         <param name="save_directory" value="$(arg save_directory)"/>
-    </node>-->
+    </node>
 
     <group if="$(arg visualize)">
         <node name="rviz_uwo" pkg="rviz" type="rviz" args=" -d $(find uwo_pack)/resources/visualize.rviz" output="screen">
