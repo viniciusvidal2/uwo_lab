@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <package>
-  <name>uwo_pack</name>
+  <name>mesh_open3d</name>
   <version>0.1.0</version>
   <description>The uwo_pack package</description>
 
@@ -9,8 +9,6 @@
   <license>Apache 2.0</license>
 
   <buildtool_depend>catkin</buildtool_depend>
-  <build_depend>cv_bridge</build_depend>
-  <build_depend>image_transport</build_depend>
   <build_depend>roscpp</build_depend>
   <build_depend>sensor_msgs</build_depend>
   <build_depend>std_msgs</build_depend>
@@ -18,10 +16,7 @@
   <build_depend>tf2_ros</build_depend>
   <build_depend>pcl_conversions</build_depend>
   <build_depend>nav_msgs</build_depend>
-  <build_depend>message_filters</build_depend>
   <build_depend>message_generation</build_depend>
-  <run_depend>cv_bridge</run_depend>
-  <run_depend>image_transport</run_depend>
   <run_depend>roscpp</run_depend>
   <run_depend>cuda</run_depend>
   <run_depend>sensor_msgs</run_depend>
@@ -30,7 +25,6 @@
   <run_depend>tf2_ros</run_depend>
   <run_depend>pcl_conversions</run_depend>
   <run_depend>nav_msgs</run_depend>
-  <run_depend>message_filters</run_depend>
   <run_depend>message_runtime</run_depend>
 
 </package>

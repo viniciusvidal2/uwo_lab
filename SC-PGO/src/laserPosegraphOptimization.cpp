@@ -68,7 +68,7 @@
 #include "aloam_velodyne/common.h"
 #include "aloam_velodyne/tic_toc.h"
 #include "scancontext/Scancontext.h"
-#include "uwo_pack/cloud.h"
+#include "mesh_open3d/cloud.h"
 
 using namespace gtsam;
 
@@ -762,7 +762,7 @@ void performSCLoopClosure(void)
         //  downSizeFilterMapPGO.setInputCloud(laserCloudMapPGO);
         //  downSizeFilterMapPGO.filter(*laserCloudMapPGO);
 
-        uwo_pack::cloud srv_msg;
+        mesh_open3d::cloud srv_msg;
         sensor_msgs::PointCloud2 cloud_msg;
         pcl::toROSMsg(*laserCloudMapPGO, cloud_msg);
         laserCloudMapPGO->clear();
@@ -957,7 +957,7 @@ int main(int argc, char **argv)
   pubLoopSubmapLocal = nh.advertise<sensor_msgs::PointCloud2>("/loop_submap_local", 100);
 
   // Vinicius
-  mesh_client = nh.serviceClient<uwo_pack::cloud>("calculate_mesh");
+  mesh_client = nh.serviceClient<mesh_open3d::cloud>("calculate_mesh");
   ros::Rate r(2);
   while (subLaserOdometry.getNumPublishers() == 0){
     ROS_INFO("SC node still waiting for cloud and odometry to start ...");

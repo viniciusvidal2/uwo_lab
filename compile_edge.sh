@@ -18,10 +18,6 @@ sleep 1s
 catkin_make -DCMAKE_BUILD_TYPE=Release --pkg fast_lio
 sleep 1s
 
-catkin_make -DCMAKE_BUILD_TYPE=Release --pkg mesh_open3d
-sleep 1s
-
 catkin_make -DCMAKE_BUILD_TYPE=Release --pkg fuse_color_3d
 sleep 1s
 
-catkin_make -DCMAKE_BUILD_TYPE=Release --pkg aloam_velodyne
