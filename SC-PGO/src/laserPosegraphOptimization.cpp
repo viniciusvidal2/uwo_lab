@@ -918,6 +918,9 @@ int main(int argc, char **argv)
 //  auto unused = system((std::string("exec rm -r ") + pgScansDirectory).c_str());
 //  unused = system((std::string("mkdir -p ") + pgScansDirectory).c_str());
 
+  string robot_name;
+  nh.param<string>("robot_name", robot_name, "robot");
+
   nh.param<double>("keyframe_meter_gap", keyframeMeterGap, 1.0); // pose assignment every k m move
   nh.param<double>("keyframe_deg_gap", keyframeDegGap, 10.0); // pose assignment every k deg rot
   keyframeRadGap = deg2rad(keyframeDegGap);
@@ -947,17 +950,17 @@ int main(int argc, char **argv)
   subLaserOdometry = nh.subscribe<nav_msgs::Odometry>("/aft_mapped_to_init", 100, laserOdometryHandler);
   ros::Subscriber subGPS = nh.subscribe<sensor_msgs::NavSatFix>("/gps/fix", 100, gpsHandler);
 
-  pubOdomAftPGO = nh.advertise<nav_msgs::Odometry>("/aft_pgo_odom", 100);
-  pubOdomRepubVerifier = nh.advertise<nav_msgs::Odometry>("/repub_odom", 100);
-  pubPathAftPGO = nh.advertise<nav_msgs::Path>("/aft_pgo_path", 100);
-  pubMapAftPGO = nh.advertise<sensor_msgs::PointCloud2>("/aft_pgo_map", 100);
-  pubLastKf = nh.advertise<sensor_msgs::PointCloud2>("/pgo_last_kf", 100);
+  pubOdomAftPGO = nh.advertise<nav_msgs::Odometry>("/"+robot_name+"/aft_pgo_odom", 100);
+  pubOdomRepubVerifier = nh.advertise<nav_msgs::Odometry>("/"+robot_name+"/repub_odom", 100);
+  pubPathAftPGO = nh.advertise<nav_msgs::Path>("/"+robot_name+"/aft_pgo_path", 100);
+  pubMapAftPGO = nh.advertise<sensor_msgs::PointCloud2>("/"+robot_name+"/aft_pgo_map", 100);
+  pubLastKf = nh.advertise<sensor_msgs::PointCloud2>("/"+robot_name+"/pgo_last_kf", 100);
 
-  pubLoopScanLocal = nh.advertise<sensor_msgs::PointCloud2>("/loop_scan_local", 100);
-  pubLoopSubmapLocal = nh.advertise<sensor_msgs::PointCloud2>("/loop_submap_local", 100);
+  pubLoopScanLocal = nh.advertise<sensor_msgs::PointCloud2>("/"+robot_name+"/loop_scan_local", 100);
+  pubLoopSubmapLocal = nh.advertise<sensor_msgs::PointCloud2>("/"+robot_name+"/loop_submap_local", 100);
 
   // Vinicius
-  mesh_client = nh.serviceClient<mesh_open3d::cloud>("calculate_mesh");
+  mesh_client = nh.serviceClient<mesh_open3d::cloud>("/"+robot_name+"/calculate_mesh");
   ros::Rate r(2);
   while (subLaserOdometry.getNumPublishers() == 0){
     ROS_INFO("SC node still waiting for cloud and odometry to start ...");

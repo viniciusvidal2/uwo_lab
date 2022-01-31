@@ -1,6 +1,6 @@
 common:
     lid_topic:  "/livox/lidar"
-    imu_topic:  "/zed2/zed_node/imu/data" # TODO: set the right imu topic from zed camera
+    imu_topic:  "/zed2/zed_node/imu/data"
     time_sync_en: true         # ONLY turn on when external time synchronization is really not possible
 
 preprocess:
@@ -16,7 +16,7 @@ mapping:
     fov_degree:    70
     det_range:     200.0
     extrinsic_est_en:  true      # true: enable the online estimation of IMU-LiDAR extrinsic
-    extrinsic_T: [ 0.04165, 0.02326, -0.0284 ] # TODO: find the correct one for our setup
+    extrinsic_T: [ 0.04165, 0.02326, -0.0284 ] # TO DO: find the correct one for our setup
     extrinsic_R: [ 1, 0, 0,
                    0, 1, 0,
                    0, 0, 1]

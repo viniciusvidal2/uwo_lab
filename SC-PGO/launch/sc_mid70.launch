@@ -1,5 +1,6 @@
 <?xml version="1.0"?>
 <launch>
+    <arg name="robot_name" default="robot"/>
 
     <param name="scan_line" type="int" value="64" />
 
@@ -26,8 +27,8 @@
     <param name="lidar_type" type="string" value="Avia"/>
 
     <!-- input from FASTLIO2 plus our color algorithm -->
-    <remap from="/aft_mapped_to_init" to="/edge/odometry"/>
-    <remap from="/velodyne_cloud_registered_local" to="/edge/cloud_colored"/>
+    <remap from="/aft_mapped_to_init" to="/$(arg robot_name)/odometry"/>
+    <remap from="/velodyne_cloud_registered_local" to="/$(arg robot_name)/cloud_colored"/>
 <!--    <remap from="/aft_mapped_to_init" to="/Odometry"/>-->
 <!--    <remap from="/velodyne_cloud_registered_local" to="/cloud_registered_body"/>-->
     <remap from="/cloud_for_scancontext" to="/cloud_registered_lidar"/>   <!-- because ScanContext requires lidar-ego-centric coordinate for the better performance -->
@@ -36,7 +37,8 @@
     <param name="save_directory" type="string" value="$(env HOME)/Desktop/catkin_fastlio_slam/data/"/>  <!-- CHANGE THIS and end with / -->
 
     <!-- nodes -->
-    <node pkg="aloam_velodyne" type="alaserPGO" name="scan_context_node" output="screen" /> <!-- Scan Context-based PGO -->
+    <node pkg="aloam_velodyne" type="alaserPGO" name="scan_context_node" output="screen"> <!-- Scan Context-based PGO -->
+    </node>
 
     <!-- visulaization -->
     <arg name="rvizscpgo" default="true" />

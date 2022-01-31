@@ -1,9 +1,31 @@
 <?xml version="1.0"?>
 <launch>
     <!--Just launch the basic sensor drivers for edge in this approach-->
+    <arg name="source_from_bag" default="true"/>
+    <arg name="bag" default="$(env HOME)/Desktop/corredor1"/>
 
-    <!--ZED2 camera-->
-    <include file="$(find zed_wrapper)/launch/zed2.launch"/>
-    <!--Livox lidar driver from this workspace, with timestamp adapted to system time-->
-    <include file="$(find livox_ros_driver)/launch/livox_lidar_msg.launch"/>
+    <!--If playing bag, just use the rosbag package-->
+    <group if="$(arg source_from_bag)">
+        <remap from="/zed2/zed_node/imu/data" to="$(arg robot_name)/zed2/zed_node/imu/data"/>
+        <remap from="/zed2/zed_node/left/image_rect_color/compressed" to="$(arg robot_name)/zed2/zed_node/left/image_rect_color/compressed"/>
+        <remap from="/livox/lidar" to="$(arg robot_name)/livox/lidar"/>
+        <remap from="/clock" to="$(arg robot_name)/clock"/>
+        <node pkg="rosbag" type="play" name="rosbag_player" output="screen" args="$(arg bag).bag --clock -s 380">
+        </node>
+    </group>
+
+    <!--Otherwise, bring up the sensors-->
+    <group unless="$(arg source_from_bag)">
+        <!--TO DO: SET THE RIGHT NAMESPACE TO DIFFERENTIATE BETWEEN ACQUISITIONS FROM MORE THE ROBOTS-->
+        <!--Remap the topics to the robot namespace-->
+        <remap from="/zed2/zed_node/imu/data" to="$(arg robot_name)/zed2/zed_node/imu/data"/>
+        <remap from="/zed2/zed_node/left/image_rect_color/compressed" to="$(arg robot_name)/zed2/zed_node/left/image_rect_color/compressed"/>
+        <remap from="/livox/lidar" to="$(arg robot_name)/livox/lidar"/>
+
+        <!--ZED2 camera-->
+        <include file="$(find zed_wrapper)/launch/zed2.launch"/>
+
+        <!--Livox lidar driver from this workspace, with timestamp adapted to system time-->
+        <include file="$(find livox_ros_driver)/launch/livox_lidar_msg.launch"/>
+    </group>
 </launch>

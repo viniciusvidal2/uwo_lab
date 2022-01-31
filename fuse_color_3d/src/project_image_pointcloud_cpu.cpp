@@ -13,6 +13,7 @@
 #include <nav_msgs/Odometry.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <sensor_msgs/Image.h>
+#include <rosgraph_msgs/Clock.h>
 
 #include <Eigen/Geometry>
 #include <Eigen/Dense>
@@ -79,6 +80,9 @@ nav_msgs::Odometry odom_msg_out;
 // Time control for new messages, to check if we have finished our goal
 ros::Time t_control_input;
 bool new_data = false;
+
+// Current clock time
+ros::Time clk;
 
 // Void to project the cloud points in the image and get the color from it
 void colorCloudCPU(PointCloud<PointT>::Ptr cloud_in, Mat image){
@@ -196,12 +200,22 @@ void processCallback(const ros::TimerEvent&){
 /// Image callback
 ///
 void imageCallback(const sensor_msgs::CompressedImageConstPtr &msg){
+  // Check latency through timestamp
+  double t = (clk - msg->header.stamp).toSec();
+  ROS_WARN("LATENCY here is %.5f", t);
+  int size = msg->data.size()*sizeof(uint8_t) + msg->format.size()*sizeof(uint8_t) + sizeof(msg->header.stamp);
+  ROS_WARN("MESSAGE SIZE here is %d", size);
+  // Convert to cv_bridge
   cv_bridge::CvImagePtr cam_img = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8);
   // Undistort the image
   undistort(cam_img->image, image_undistorted, K_, dist_coefs);
-//  cam_img->image.copyTo(image_undistorted);
 }
 
+/// Current time callback
+///
+void clockCallback(const rosgraph_msgs::ClockConstPtr &msg){
+  clk = msg->clock;
+}
 
 int main(int argc, char **argv)
 {
@@ -243,9 +257,13 @@ int main(int argc, char **argv)
   // Incorporate frame transform in the extrinsic matrix for once
   P = P*T_lc;
 
+  // Robot name
+  string robot_name;
+  n_.param<string>("robot_name", robot_name, "robot");
+
   // Initialize publishers
-  cloud_publisher = nh.advertise<sensor_msgs::PointCloud2>("/cloud_colored", 10000);
-  odom_publisher  = nh.advertise<nav_msgs::Odometry>("/odometry", 10000);
+  cloud_publisher = nh.advertise<sensor_msgs::PointCloud2>("/"+robot_name+"/cloud_colored", 10000);
+  odom_publisher  = nh.advertise<nav_msgs::Odometry>("/"+robot_name+"/odometry", 10000);
 
   // Initialize sync subscribers
   string image_topic, cloud_topic, odometry_topic;
@@ -253,14 +271,16 @@ int main(int argc, char **argv)
   n_.param<string>("input_topics/cloud_topic", cloud_topic, "/cloud_registered_body");
   n_.param<string>("input_topics/odometry_topic", odometry_topic, "/Odometry");
 
-  im_sub = nh.subscribe(image_topic, 100, &imageCallback);
+  ros::Subscriber clk_sub = nh.subscribe("/"+robot_name+"/clock", 100, &clockCallback);
+
+  im_sub = nh.subscribe("/"+robot_name+image_topic, 1, &imageCallback);
   ros::Rate r(5);
   while (im_sub.getNumPublishers() < 1){
     r.sleep();
     ROS_WARN("Waiting for the image topic to show up ...");
   }
-  message_filters::Subscriber<sensor_msgs::PointCloud2> cloud_sub(nh, cloud_topic, 10000);
-  message_filters::Subscriber<nav_msgs::Odometry>       odom_sub(nh, odometry_topic, 10000);
+  message_filters::Subscriber<sensor_msgs::PointCloud2> cloud_sub(nh, "/"+robot_name+cloud_topic, 10000);
+  message_filters::Subscriber<nav_msgs::Odometry>       odom_sub(nh, "/"+robot_name+odometry_topic, 10000);
 
   typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::PointCloud2, nav_msgs::Odometry> sync_pol;
   message_filters::Synchronizer<sync_pol> sync(sync_pol(10000), cloud_sub, odom_sub);

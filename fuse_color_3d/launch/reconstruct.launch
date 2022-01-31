@@ -1,19 +1,29 @@
 <?xml version="1.0"?>
 <launch>
     <!--List of arguments-->
-    <arg name="save_directory" default="$(env HOME)/Desktop"/>
-    <arg name="visualize" default="true"/>
+    <arg name="visualize" default="false"/>
     <arg name="source_from_bag" default="true"/>
     <arg name="bag" default="$(env HOME)/Desktop/corredor1"/>
-    <arg name="robot_name" default="edge"/>
+    <arg name="robot_name" default="robot"/>
 
     <!--If playing bag, just use the rosbag package-->
     <group if="$(arg source_from_bag)">
-        <node pkg="rosbag" type="play" name="rosbag_player" output="screen" args="$(arg bag).bag --clock "/>
+        <remap from="/zed2/zed_node/imu/data" to="$(arg robot_name)/zed2/zed_node/imu/data"/>
+        <remap from="/zed2/zed_node/left/image_rect_color/compressed" to="$(arg robot_name)/zed2/zed_node/left/image_rect_color/compressed"/>
+        <remap from="/livox/lidar" to="$(arg robot_name)/livox/lidar"/>
+        <remap from="/clock" to="$(arg robot_name)/clock"/>
+        <node pkg="rosbag" type="play" name="rosbag_player" output="screen" args="$(arg bag).bag --clock -s 380">
+        </node>
     </group>
 
     <!--Otherwise, bring up the sensors-->
     <group unless="$(arg source_from_bag)">
+        <!--TO DO: SET THE RIGHT NAMESPACE TO DIFFERENTIATE BETWEEN ACQUISITIONS FROM MORE THE ROBOTS-->
+        <!--Remap the topics to the robot namespace-->
+        <remap from="/zed2/zed_node/imu/data" to="$(arg robot_name)/zed2/zed_node/imu/data"/>
+        <remap from="/zed2/zed_node/left/image_rect_color/compressed" to="$(arg robot_name)/zed2/zed_node/left/image_rect_color/compressed"/>
+        <remap from="/livox/lidar" to="$(arg robot_name)/livox/lidar"/>
+
         <!--ZED2 camera-->
         <include file="$(find zed_wrapper)/launch/zed2.launch"/>
 
@@ -21,37 +31,43 @@
         <include file="$(find livox_ros_driver)/launch/livox_lidar_msg.launch"/>
     </group>
 
-    <!--TF from base_link to body, must be better adjusted-->
-    <arg name="tf_body_bl" value="0 0 0 0 0 0"/>
-    <node pkg="tf" type="static_transform_publisher" name="tf_fl2z" args="$(arg tf_body_bl) /body /base_link 10"/>
+    <group ns="$(arg robot_name)">
+        <!--TF from base_link to body, must be better adjusted-->
+        <arg name="tf_body_bl" value="0 0 0 0 0 0"/>
+        <node pkg="tf" type="static_transform_publisher" name="tf_fl2z" args="$(arg tf_body_bl) /body /base_link 10"/>
 
-    <!--Fast lio node with its launch file-->
-    <include file="$(find fast_lio)/launch/mapping_mid70.launch">
-        <arg name="rviz" value="false"/>
-    </include>
+        <!--Fast lio node with its launch file-->
+        <include file="$(find fast_lio)/launch/mapping_mid70.launch">
+            <arg name="rviz" value="false"/>
+            <arg name="robot_name" value="$(arg robot_name)"/>
+        </include>
 
-    <!--Lidar and color fusion algorithm-->
-    <node name="project_image_pointcloud_node" type="project_cloud_cpu_node" pkg="uwo_pack" ns="$(arg robot_name)" output="screen">
-        <rosparam file="$(find uwo_pack)/config/zed_params.yaml"/>
-        <remap from="/cloud_colored" to="/$(arg robot_name)/cloud_colored"/>
-        <remap from="/odometry" to="/$(arg robot_name)/odometry"/>
-    </node>
-
-    <!--Scan context algorithm to detect loop closure-->
-    <include file="$(find aloam_velodyne)/launch/sc_mid70.launch">
-        <arg name="rvizscpgo" value="false"/>
-    </include>
-<!--    <include file="$(find aloam_velodyne)/launch/fastlio_ouster64.launch">
-        <arg name="rvizscpgo" value="false"/>
-    </include>-->
-
-    <!--Mesh calculation server node-->
-    <node name="final_mesh_server_node" type="final_mesh_node" pkg="uwo_pack" output="screen">
-        <param name="save_directory" value="$(arg save_directory)"/>
-    </node>
-
-    <group if="$(arg visualize)">
-        <node name="rviz_uwo" pkg="rviz" type="rviz" args=" -d $(find uwo_pack)/resources/visualize.rviz" output="screen">
+        <!--Lidar and color fusion algorithm-->
+        <node name="project_image_pointcloud_node" type="project_cloud_cpu_node" pkg="fuse_color_3d" output="screen">
+            <rosparam file="$(find fuse_color_3d)/config/zed_params.yaml"/>
+            <param name="robot_name" type="string" value="$(arg robot_name)"/>
         </node>
+
+        <!--Scan context algorithm to detect loop closure-->
+        <include file="$(find aloam_velodyne)/launch/sc_mid70.launch">
+            <arg name="rvizscpgo" value="false"/>
+            <arg name="robot_name" value="$(arg robot_name)"/>
+        </include>
+        <!--    <include file="$(find aloam_velodyne)/launch/fastlio_ouster64.launch">
+                <arg name="rvizscpgo" value="false"/>
+            </include>-->
+
+        <!--Mesh calculation server node-->
+        <arg name="mesh_save_directory" default="$(env HOME)/Desktop"/>
+        <node name="final_mesh_server_node" type="final_mesh_node" pkg="mesh_open3d" output="screen">
+            <param name="mesh_save_directory" value="$(arg mesh_save_directory)"/>
+            <param name="robot_name" value="$(arg robot_name)"/>
+        </node>
+
+        <!--Visualize with our settings-->
+        <group if="$(arg visualize)">
+            <node name="rviz_uwo" pkg="rviz" type="rviz" args=" -d $(find fuse_color_3d)/resources/visualize.rviz" output="screen">
+            </node>
+        </group>
     </group>
 </launch>

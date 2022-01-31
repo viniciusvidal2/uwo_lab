@@ -198,7 +198,7 @@ bool work_cloud(uwo_pack::cloud::Request &req, uwo_pack::cloud::Response &res){
   cloud_normals->clear();
 
   ///// Calculate with no processing, only for comparison
-  ROS_INFO("Calculating the mesh for whole point cloud, for comparison ...");
+  ROS_INFO("Calculating the mesh for whole point cloud ...");
   t = ros::Time::now();
   auto mesh_tuple = o3g::TriangleMesh::CreateFromPointCloudPoisson(o3d_cloud, 10);
   o3d_cloud.Clear();
@@ -206,6 +206,7 @@ bool work_cloud(uwo_pack::cloud::Request &req, uwo_pack::cloud::Response &res){
   get<0>(mesh_tuple)->RemoveVerticesByMask(indices_to_remove);
   ROS_WARN("Mesh calculated in %.6f seconds ...", (ros::Time::now() - t).toSec());
 
+  ROS_INFO("Saving the mesh in %s ...", save_directory.c_str());
   o3d::io::WriteTriangleMesh(save_directory+"/output_mesh.ply", *get<0>(mesh_tuple));
 
   res.answer = get<0>(mesh_tuple)->IsEmpty() ? false : true;
@@ -215,13 +216,14 @@ bool work_cloud(uwo_pack::cloud::Request &req, uwo_pack::cloud::Response &res){
 int main(int argc, char **argv)
 {
   ros::init(argc, argv, "final_mesh_node");
-  ros::NodeHandle nh;
+  ros::NodeHandle nh("~");
   ROS_INFO("Initialyzing node ...");
 
-  nh.getParam("/final_mesh_server_node/save_directory", save_directory);
-  cout << save_directory << endl;
+  string robot_name;
+  nh.param<string>("robot_name", robot_name, "robot");
+  nh.getParam("mesh_save_directory", save_directory);
 
-  ros::ServiceServer server = nh.advertiseService("calculate_mesh", work_cloud);
+  ros::ServiceServer server = nh.advertiseService("/"+robot_name+"/calculate_mesh", work_cloud);
   ROS_INFO("Server for mesh calculation is already running.");
 //  ros::Time t;
 

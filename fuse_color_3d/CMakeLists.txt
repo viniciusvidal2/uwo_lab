@@ -15,6 +15,7 @@ find_package(catkin REQUIRED COMPONENTS
     pcl_conversions
     nav_msgs
     message_filters
+    rosgraph_msgs
 )
 
 find_package(OpenCV 4.2.0 QUIET)
