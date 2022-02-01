@@ -1,7 +1,6 @@
 <?xml version="1.0"?>
 <launch>
     <!--List of arguments-->
-    <arg name="visualize" default="false"/>
     <arg name="source_from_bag" default="true"/>
     <arg name="bag" default="$(env HOME)/Desktop/corredor1"/>
     <arg name="robot_name" default="robot"/>
@@ -12,7 +11,7 @@
         <remap from="/zed2/zed_node/left/image_rect_color/compressed" to="$(arg robot_name)/zed2/zed_node/left/image_rect_color/compressed"/>
         <remap from="/livox/lidar" to="$(arg robot_name)/livox/lidar"/>
         <remap from="/clock" to="$(arg robot_name)/clock"/>
-        <node pkg="rosbag" type="play" name="rosbag_player" output="screen" args="$(arg bag).bag --clock -s 380">
+        <node pkg="rosbag" type="play" name="rosbag_player" output="screen" args="$(arg bag).bag --clock -s 0">
         </node>
     </group>
 
@@ -65,6 +64,7 @@
         </node>
 
         <!--Visualize with our settings-->
+        <arg name="visualize" default="false"/>
         <group if="$(arg visualize)">
             <node name="rviz_uwo" pkg="rviz" type="rviz" args=" -d $(find fuse_color_3d)/resources/visualize.rviz" output="screen">
             </node>

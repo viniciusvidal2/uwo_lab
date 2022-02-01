@@ -246,6 +246,10 @@ void saveOptimizedVerticesKITTIformat(gtsam::Values _estimates, std::string _fil
 void laserOdometryHandler(const nav_msgs::Odometry::ConstPtr &_laserOdometry)
 {
   t_control_input = ros::Time::now(); // Every time there is a new message, save current time
+
+  double t = (t_control_input - _laserOdometry->header.stamp).toSec();
+//  cout << "\nLATENCY HERE IS: " << t << endl;
+
   mBuf.lock();
   odometryBuf.push(_laserOdometry);
   mBuf.unlock();

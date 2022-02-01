@@ -124,6 +124,9 @@ void syncCallback(const sensor_msgs::PointCloud2ConstPtr &cl_msg,
                   const nav_msgs::OdometryConstPtr &o_msg){ 
   t_control_input = ros::Time::now();
 
+  double t = (t_control_input - cl_msg->header.stamp).toSec();
+//  ROS_DEBUG("LATENCY here is %.5f", t);
+
   // Convert the message
   fromROSMsg(*cl_msg, *cloud_in);
 
@@ -202,9 +205,9 @@ void processCallback(const ros::TimerEvent&){
 void imageCallback(const sensor_msgs::CompressedImageConstPtr &msg){
   // Check latency through timestamp
   double t = (clk - msg->header.stamp).toSec();
-  ROS_WARN("LATENCY here is %.5f", t);
+//  ROS_DEBUG("LATENCY here is %.5f", t);
   int size = msg->data.size()*sizeof(uint8_t) + msg->format.size()*sizeof(uint8_t) + sizeof(msg->header.stamp);
-  ROS_WARN("MESSAGE SIZE here is %d", size);
+//  ROS_DEBUG("MESSAGE SIZE here is %d", size);
   // Convert to cv_bridge
   cv_bridge::CvImagePtr cam_img = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8);
   // Undistort the image
