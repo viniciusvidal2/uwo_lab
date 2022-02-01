@@ -5,6 +5,7 @@
 #include <math.h>
 #include <mutex>
 #include <ctime>
+#include <boost/filesystem.hpp>
 
 #include <message_filters/synchronizer.h>
 #include <message_filters/sync_policies/approximate_time.h>
@@ -54,6 +55,9 @@ PointCloud<PointIn>::Ptr cloud_in, cloud_save;
 PointCloud<PointT>::Ptr cloud_rgb;
 PassThrough<PointIn> pass;
 
+// Robot name to organize logs
+string robot_name;
+
 // Intrinsic and extrinsic matrices, distortion coeficients
 static Matrix4f P;
 Mat dist_coefs, K_;
@@ -83,6 +87,47 @@ bool new_data = false;
 
 // Current clock time
 ros::Time clk;
+
+// Vectors to save the latency, process time and data sizes along the execution
+vector<double> im_latencies, cloud_latencies, process_times;
+vector<size_t> im_sizes, cloud_sizes_in, cloud_sizes_out;
+
+// Void to save the logs from this node
+void save_logs(){
+  // Check if the folder exists
+  string log_dir = string(getenv("HOME")) + "/Desktop/" + robot_name + "_log/";
+  if(!opendir(log_dir.c_str()))
+    boost::filesystem::create_directory(log_dir.c_str());
+  ROS_INFO("Writing logs to %s ...", log_dir.c_str());
+  // Open the files in the folder
+  FILE *fp;
+  // For each data type, write the results to the file
+  fp = fopen((log_dir+"/latencies_fastlio_fusecolor_im.txt").c_str(),"w");
+  for(auto l:im_latencies)
+    fprintf(fp, "%.4f\n", l);
+  fclose(fp);
+  fp = fopen((log_dir+"/latencies_fastlio_fusecolor_cloud.txt").c_str(),"w");
+  for(auto cl:cloud_latencies)
+    fprintf(fp, "%.4f\n", cl);
+  fclose(fp);
+  fp = fopen((log_dir+"/processtime_fusecolor.txt").c_str(),"w");
+  for(auto pt:process_times)
+    fprintf(fp, "%.4f\n", pt);
+  fclose(fp);
+  fp = fopen((log_dir+"/messagesize_fusecolor_im.txt").c_str(),"w");
+  for(auto ms:im_sizes)
+    fprintf(fp, "%zu\n", ms);
+  fclose(fp);
+  fp = fopen((log_dir+"/messagesize_fusecolor_cloudin.txt").c_str(),"w");
+  for(auto ms:cloud_sizes_in)
+    fprintf(fp, "%zu\n", ms);
+  fclose(fp);
+  fp = fopen((log_dir+"/messagesize_fusecolor_cloudout.txt").c_str(),"w");
+  for(auto ms:cloud_sizes_out)
+    fprintf(fp, "%zu\n", ms);
+  fclose(fp);
+  ROS_INFO("Wrote logs !");
+}
 
 // Void to project the cloud points in the image and get the color from it
 void colorCloudCPU(PointCloud<PointT>::Ptr cloud_in, Mat image){
@@ -124,8 +169,12 @@ void syncCallback(const sensor_msgs::PointCloud2ConstPtr &cl_msg,
                   const nav_msgs::OdometryConstPtr &o_msg){ 
   t_control_input = ros::Time::now();
 
+  // Calculate latency
   double t = (t_control_input - cl_msg->header.stamp).toSec();
-//  ROS_DEBUG("LATENCY here is %.5f", t);
+  cloud_latencies.emplace_back(t);
+  // Calculate message size - only cloud is relevant
+  int size = cl_msg->width*cl_msg->height*cl_msg->point_step*sizeof(uint8_t) + sizeof(cl_msg->header.stamp);
+  cloud_sizes_in.emplace_back(size);
 
   // Convert the message
   fromROSMsg(*cl_msg, *cloud_in);
@@ -162,6 +211,8 @@ void syncCallback(const sensor_msgs::PointCloud2ConstPtr &cl_msg,
 ///
 void processCallback(const ros::TimerEvent&){
   if(new_data){
+    ros::Time start = ros::Time::now();
+
     // Lock mutex
     mtx.lock();
 
@@ -182,21 +233,29 @@ void processCallback(const ros::TimerEvent&){
 
     // Publish both odometry and cloud synchronized for the Scan Context
     if (im_sub.getNumPublishers() > 0){
-      if ((ros::Time::now() - t_control_input).toSec() < 1){ // So we dont publish forever when data stops coming
-        if (cloud_rgb->points.size() > 0){
-          cloud_publisher.publish(cl_msg_out);
-          odom_publisher.publish(odom_msg_out);
-        }
+      if (cloud_rgb->points.size() > 0){
+        cloud_publisher.publish(cl_msg_out);
+        odom_publisher.publish(odom_msg_out);
       }
-    } else {
-      ROS_WARN("No new messages to send, closing node ...");
-      ros::shutdown();
     }
 
     new_data = false;
 
+    // Finish and save how much time it took to process the data
+    process_times.emplace_back((ros::Time::now() - start).toSec());
+
+    // Calculate cloud output message size
+    int size = cl_msg_out.width*cl_msg_out.height*cl_msg_out.point_step*sizeof(uint8_t) + sizeof(cl_msg_out.header.stamp);
+    cloud_sizes_out.emplace_back(size);
+
     // Free mutex
     mtx.unlock();
+  }
+  if(im_sub.getNumPublishers() == 0){
+    // Data is not coming anymore, so save the logs
+    save_logs();
+    ROS_WARN("No new messages to send, closing node ...");
+    ros::shutdown();
   }
 }
 
@@ -205,9 +264,10 @@ void processCallback(const ros::TimerEvent&){
 void imageCallback(const sensor_msgs::CompressedImageConstPtr &msg){
   // Check latency through timestamp
   double t = (clk - msg->header.stamp).toSec();
-//  ROS_DEBUG("LATENCY here is %.5f", t);
+  im_latencies.emplace_back(t);
+  // Calculate message size
   int size = msg->data.size()*sizeof(uint8_t) + msg->format.size()*sizeof(uint8_t) + sizeof(msg->header.stamp);
-//  ROS_DEBUG("MESSAGE SIZE here is %d", size);
+  im_sizes.emplace_back(size);
   // Convert to cv_bridge
   cv_bridge::CvImagePtr cam_img = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8);
   // Undistort the image
@@ -220,6 +280,8 @@ void clockCallback(const rosgraph_msgs::ClockConstPtr &msg){
   clk = msg->clock;
 }
 
+/// MAIN
+///
 int main(int argc, char **argv)
 {
   ros::init(argc, argv, "project_image_pointcloud_node");
@@ -261,7 +323,6 @@ int main(int argc, char **argv)
   P = P*T_lc;
 
   // Robot name
-  string robot_name;
   n_.param<string>("robot_name", robot_name, "robot");
 
   // Initialize publishers
@@ -300,7 +361,7 @@ int main(int argc, char **argv)
 
   ros::Timer timer = nh.createTimer(ros::Duration(0.1), processCallback);
 
-  ros::MultiThreadedSpinner spinner(6);
+  ros::MultiThreadedSpinner spinner(4);
   spinner.spin();
 
   cloud_rgb->clear();

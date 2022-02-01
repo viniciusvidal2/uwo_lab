@@ -66,9 +66,10 @@
 #define MAXN                (720000)
 #define PUBFRAME_PERIOD     (20)
 
-// Current clock time
+// Current clock time Vinicius
 ros::Time clk, init_ref_stamp;
 double init_ref_lidar;
+vector<double> process_times;
 
 /*** Time Log Variables ***/
 double kdtree_incremental_time = 0.0, kdtree_search_time = 0.0, kdtree_delete_time = 0.0;
@@ -998,6 +999,9 @@ int main(int argc, char** argv)
       // publish_effect_world(pubLaserCloudEffect);
       // publish_map(pubLaserCloudMap);
 
+      /// Save the time to process this loop of points ///
+      process_times.emplace_back(t5 - t0);
+
       /*** Debug variables ***/
       if (runtime_pos_log)
       {
@@ -1029,13 +1033,32 @@ int main(int argc, char** argv)
       }
     }
 
+    if(!flg_first_scan && sub_pcl.getNumPublishers() == 0 && sub_imu.getNumPublishers() == 0){
+      // Save data log for this node - Vinicius
+      // Check if the folder exists
+      string log_dir = string(getenv("HOME")) + "/Desktop/" + robot_name + "_log/";
+      if(!opendir(log_dir.c_str()))
+        boost::filesystem::create_directory(log_dir.c_str());
+      ROS_INFO("Writing logs to %s ...", log_dir.c_str());
+      // Open the files in the folder
+      FILE *fpp;
+      // For each data type, write the results to the file
+      fpp = fopen((log_dir+"/processtime_fastlio.txt").c_str(),"w");
+      for(auto pt:process_times)
+        fprintf(fpp, "%.4f\n", pt);
+      fclose(fpp);
+      ROS_INFO("Wrote logs !");
+
+      ros::shutdown();
+    }
+
     status = ros::ok();
     rate.sleep();
   }
 
   /**************** save map ****************/
   /* 1. make sure you have enough memories
-    /* 2. pcd save will largely influence the real-time performences **/
+     2. pcd save will largely influence the real-time performences **/
   if (pcl_wait_save->size() > 0 && pcd_save_en)
   {
     string file_name = string("scans.pcd");

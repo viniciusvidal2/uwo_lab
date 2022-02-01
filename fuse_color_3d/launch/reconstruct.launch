@@ -11,7 +11,7 @@
         <remap from="/zed2/zed_node/left/image_rect_color/compressed" to="$(arg robot_name)/zed2/zed_node/left/image_rect_color/compressed"/>
         <remap from="/livox/lidar" to="$(arg robot_name)/livox/lidar"/>
         <remap from="/clock" to="$(arg robot_name)/clock"/>
-        <node pkg="rosbag" type="play" name="rosbag_player" output="screen" args="$(arg bag).bag --clock -s 0">
+        <node pkg="rosbag" type="play" name="rosbag_player" output="screen" args="$(arg bag).bag --clock -s 300">
         </node>
     </group>
 
