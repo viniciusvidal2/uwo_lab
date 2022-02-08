@@ -69,7 +69,7 @@
 // Current clock time Vinicius
 ros::Time clk, init_ref_stamp;
 double init_ref_lidar;
-vector<double> process_times;
+vector<double> process_times, latencies;
 
 /*** Time Log Variables ***/
 double kdtree_incremental_time = 0.0, kdtree_search_time = 0.0, kdtree_delete_time = 0.0;
@@ -311,9 +311,9 @@ double timediff_lidar_wrt_imu = 0.0;
 bool   timediff_set_flg = false;
 void livox_pcl_cbk(const livox_ros_driver::CustomMsg::ConstPtr &msg) 
 {
-
+  // Calculating latency
   double t = abs((clk - init_ref_stamp).toSec() - (msg->header.stamp.toSec() - init_ref_lidar));
-//  ROS_WARN("LATENCY here is %.5f", t);
+  latencies.emplace_back(t);
 
   mtx_buffer.lock();
   double preprocess_start_time = omp_get_wtime();
@@ -900,6 +900,7 @@ int main(int argc, char** argv)
       solve_const_H_time = 0;
       svd_time   = 0;
       t0 = omp_get_wtime();
+      ros::Time t0_ = ros::Time::now();
 
       p_imu->Process(Measures, kf, feats_undistort);
       state_point = kf.get_x();
@@ -1000,7 +1001,8 @@ int main(int argc, char** argv)
       // publish_map(pubLaserCloudMap);
 
       /// Save the time to process this loop of points ///
-      process_times.emplace_back(t5 - t0);
+//      process_times.emplace_back(t5 - t0);
+      process_times.emplace_back((ros::Time::now() - t0_).toSec());
 
       /*** Debug variables ***/
       if (runtime_pos_log)
@@ -1043,6 +1045,10 @@ int main(int argc, char** argv)
       // Open the files in the folder
       FILE *fpp;
       // For each data type, write the results to the file
+      fpp = fopen((log_dir+"/latencies_source_fastlio_cloud.txt").c_str(),"w");
+      for(auto l:latencies)
+        fprintf(fpp, "%.4f\n", l);
+      fclose(fpp);
       fpp = fopen((log_dir+"/processtime_fastlio.txt").c_str(),"w");
       for(auto pt:process_times)
         fprintf(fpp, "%.4f\n", pt);

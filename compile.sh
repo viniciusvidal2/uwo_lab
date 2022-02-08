@@ -9,6 +9,9 @@ source devel/setup.bash
 catkin_make -DCMAKE_BUILD_TYPE=Release --pkg livox_ros_driver
 sleep 1s
 
+catkin_make -DCMAKE_BUILD_TYPE=Release --pkg cpu_monitor
+sleep 1s
+
 catkin_make -DCMAKE_BUILD_TYPE=Release --pkg zed_ros
 sleep 1s
 

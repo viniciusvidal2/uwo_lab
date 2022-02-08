@@ -53,16 +53,7 @@
 #include <gtsam/nonlinear/ISAM2.h>
 
 #include "open3d/geometry/PointCloud.h"
-//#include "open3d/geometry/BoundingVolume.h"
-//#include "open3d/geometry/KDTreeFlann.h"
-//#include "open3d/geometry/VoxelGrid.h"
 #include "open3d/geometry/Geometry3D.h"
-//#include "open3d/geometry/KDTreeFlann.h"
-//#include "open3d/geometry/KDTreeSearchParam.h"
-//#include "open3d/core/nns/NearestNeighborSearch.h"
-//#include "open3d/Open3D.h"
-//#include "open3d/geometry/MeshBase.h"
-//#include "open3d/geometry/TriangleMesh.h"
 #include "open3d/pipelines/registration/ColoredICP.h"
 
 #include "aloam_velodyne/common.h"
@@ -153,11 +144,19 @@ std::fstream pgTimeSaveStream;
 ros::Time t_control_input;
 ros::ServiceClient mesh_client;
 ros::Subscriber subLaserOdometry;
+// Log - times and sizes
+vector<double> latencies, process_times;
+
 // Check index pairs being added to the graph
 int last_previous, last_curr, count_same = 0;
 // Definitions for Open3D
 namespace o3d = open3d;
 namespace o3g = open3d::geometry;
+// Name to differentiate robot, mainly in logs and topics
+string robot_name;
+bool write_logs = true;
+
+
 /// Convert PCL cloud to Open3D
 ///
 o3g::PointCloud convertPCL2Open3D(pcl::PointCloud<pcl::PointXYZRGB>::Ptr c){
@@ -247,9 +246,6 @@ void laserOdometryHandler(const nav_msgs::Odometry::ConstPtr &_laserOdometry)
 {
   t_control_input = ros::Time::now(); // Every time there is a new message, save current time
 
-  double t = (t_control_input - _laserOdometry->header.stamp).toSec();
-//  cout << "\nLATENCY HERE IS: " << t << endl;
-
   mBuf.lock();
   odometryBuf.push(_laserOdometry);
   mBuf.unlock();
@@ -257,6 +253,10 @@ void laserOdometryHandler(const nav_msgs::Odometry::ConstPtr &_laserOdometry)
 
 void laserCloudFullResHandler(const sensor_msgs::PointCloud2ConstPtr &_laserCloudFullRes)
 {
+  // Estimate latency for cloud
+  double t = (ros::Time::now() - _laserCloudFullRes->header.stamp).toSec();
+  latencies.emplace_back(t);
+
   mBuf.lock();
   fullResBuf.push(_laserCloudFullRes);
   mBuf.unlock();
@@ -583,7 +583,8 @@ void process_pg()
   while(1)
   {
     while ( !odometryBuf.empty() && !fullResBuf.empty() )
-    {
+    {      
+      ros::Time t = ros::Time::now();
       //
       // pop and check keyframe is or not
       //
@@ -724,6 +725,8 @@ void process_pg()
 //      std::string curr_node_idx_str = padZeros(curr_node_idx);
 //      pcl::io::savePCDFileBinary(pgScansDirectory + curr_node_idx_str + ".pcd", *thisKeyFrame); // scan
 //      pgTimeSaveStream << timeLaser << std::endl; // path
+
+      process_times.emplace_back((ros::Time::now() - t).toSec());
     }
 
     // ps.
@@ -746,7 +749,7 @@ void performSCLoopClosure(void)
     if( SCclosestHistoryFrameID != -1 ) {
       const int prev_node_idx = SCclosestHistoryFrameID;
       const int curr_node_idx = keyframePoses.size() - 1; // because cpp starts 0 and ends n-1
-      cout << "Loop detected! - between " << prev_node_idx << " and " << curr_node_idx << "" << endl;
+      cout << "Loop detected! - between " << prev_node_idx  << " " << last_previous << " and " << curr_node_idx << " " << last_curr << endl;
 
       // Control the detection to see if we have reached the end
       count_same = (last_previous == prev_node_idx && last_curr == curr_node_idx) ? count_same + 1 : 0;
@@ -778,6 +781,28 @@ void performSCLoopClosure(void)
           ROS_INFO("Building up the final mesh");
         else
           ROS_ERROR("Could not build the final mesh, check if server is working properly.");
+
+        // If no more incoming data, save the logs
+        if(subLaserOdometry.getNumPublishers() == 0){
+          // Check if the folder exists
+          string log_dir = string(getenv("HOME")) + "/Desktop/" + robot_name + "_log/";
+          if(!opendir(log_dir.c_str()))
+            boost::filesystem::create_directory(log_dir.c_str());
+          ROS_INFO("Writing logs to %s ...", log_dir.c_str());
+          // Open the files in the folder
+          FILE *fpp;
+          // For each data type, write the results to the file
+          fpp = fopen((log_dir+"/latencies_fusecolor_scancontext_cloud.txt").c_str(),"w");
+          for(auto l:latencies)
+            fprintf(fpp, "%.4f\n", l);
+          fclose(fpp);
+          fpp = fopen((log_dir+"/processtime_scancontext.txt").c_str(),"w");
+          for(auto pt:process_times)
+            fprintf(fpp, "%.4f\n", pt);
+          fclose(fpp);
+          ROS_INFO("Wrote logs !");
+//          write_logs = false;
+        }
         mBuf.unlock();
 
         // Finish this node
@@ -922,7 +947,6 @@ int main(int argc, char **argv)
 //  auto unused = system((std::string("exec rm -r ") + pgScansDirectory).c_str());
 //  unused = system((std::string("mkdir -p ") + pgScansDirectory).c_str());
 
-  string robot_name;
   nh.param<string>("robot_name", robot_name, "robot");
 
   nh.param<double>("keyframe_meter_gap", keyframeMeterGap, 1.0); // pose assignment every k m move

@@ -102,7 +102,7 @@ void save_logs(){
   // Open the files in the folder
   FILE *fp;
   // For each data type, write the results to the file
-  fp = fopen((log_dir+"/latencies_fastlio_fusecolor_im.txt").c_str(),"w");
+  fp = fopen((log_dir+"/latencies_source_fusecolor_im.txt").c_str(),"w");
   for(auto l:im_latencies)
     fprintf(fp, "%.4f\n", l);
   fclose(fp);
