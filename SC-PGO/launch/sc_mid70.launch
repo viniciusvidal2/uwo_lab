@@ -2,6 +2,7 @@
 <launch>
     <arg name="robot_name" default="robot"/>
     <arg name="do_log" default="false"/>
+    <arg name="network_entity" default="fog"/>
 
     <param name="scan_line" type="int" value="64" />
 
@@ -44,6 +45,7 @@
     <node name="log_$(arg scan_context_node_name)" if="$(arg do_log)" pkg="cpu_monitor" type="log_ram_cpu_node" output="screen">
         <param name="robot_name" type="string" value="$(arg robot_name)"/>
         <param name="node_name" type="string" value="$(arg scan_context_node_name)"/>
+        <param name="network_entity" type="string" value="$(arg network_entity)"/>
     </node>
 
     <!-- visulaization -->

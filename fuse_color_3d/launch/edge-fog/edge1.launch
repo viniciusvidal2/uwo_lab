@@ -1,8 +1,12 @@
 <?xml version="1.0"?>
 <launch>
     <!--Just launch the basic sensor drivers for edge in this approach-->
+    <!--List of arguments-->
     <arg name="source_from_bag" default="true"/>
     <arg name="bag" default="$(env HOME)/Desktop/corredor1"/>
+    <arg name="robot_name" default="robot"/>
+    <arg name="do_log" default="true"/>
+    <arg name="network_entity" default="edge"/>
 
     <!--If playing bag, just use the rosbag package-->
     <group if="$(arg source_from_bag)">
@@ -27,5 +31,19 @@
 
         <!--Livox lidar driver from this workspace, with timestamp adapted to system time-->
         <include file="$(find livox_ros_driver)/launch/livox_lidar_msg.launch"/>
+    </group>
+
+    <group ns="$(arg robot_name)">
+        <!--Measure the RAM and CPU usage for the system and each node-->
+        <include file="$(find cpu_monitor)/launch/cpu_monitor.launch">
+            <arg name="network_entity" value="$(arg network_entity)"/>
+            <arg name="poll_period" value="0.5"/>
+        </include>
+
+        <!--Log the total CPU consumption-->
+        <node name="log_cpu_total" type="log_cpu_total" pkg="cpu_monitor" output="screen">
+            <param name="robot_name" type="string" value="$(arg robot_name)"/>
+            <param name="network_entity" type="string" value="edge"/>
+        </node>
     </group>
 </launch>

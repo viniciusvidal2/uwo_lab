@@ -4,6 +4,7 @@
     <arg name="rviz" default="true"/>
     <arg name="robot_name" default="robot"/>
     <arg name="do_log" default="false"/>
+    <arg name="network_entity" default="fog"/>
 
     <rosparam command="load" file="$(find fast_lio)/config/mid70.yaml"/>
 
@@ -21,6 +22,7 @@
     <node name="log_$(arg FASTLIO_node_name)" if="$(arg do_log)" pkg="cpu_monitor" type="log_ram_cpu_node" output="screen">
         <param name="robot_name" type="string" value="$(arg robot_name)"/>
         <param name="node_name" type="string" value="$(arg FASTLIO_node_name)"/>
+        <param name="network_entity" type="string" value="$(arg network_entity)"/>
     </node>
 
     <group if="$(arg rviz)">

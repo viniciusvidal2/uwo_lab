@@ -5,6 +5,7 @@
     <arg name="bag" default="$(env HOME)/Desktop/corredor1"/>
     <arg name="robot_name" default="robot"/>
     <arg name="do_log" default="true"/>
+    <arg name="network_entity" default="fog"/>
 
     <!--If playing bag, just use the rosbag package-->
     <group if="$(arg source_from_bag)">
@@ -12,13 +13,12 @@
         <remap from="/zed2/zed_node/left/image_rect_color/compressed" to="$(arg robot_name)/zed2/zed_node/left/image_rect_color/compressed"/>
         <remap from="/livox/lidar" to="$(arg robot_name)/livox/lidar"/>
         <remap from="/clock" to="$(arg robot_name)/clock"/>
-        <node pkg="rosbag" type="play" name="rosbag_player" output="screen" args="$(arg bag).bag --clock -s 310">
+        <node pkg="rosbag" type="play" name="rosbag_player" output="screen" args="$(arg bag).bag --clock -s 300">
         </node>
     </group>
 
     <!--Otherwise, bring up the sensors-->
     <group unless="$(arg source_from_bag)">
-        <!--TO DO: SET THE RIGHT NAMESPACE TO DIFFERENTIATE BETWEEN ACQUISITIONS FROM MORE THE ROBOTS-->
         <!--Remap the topics to the robot namespace-->
         <remap from="/zed2/zed_node/imu/data" to="$(arg robot_name)/zed2/zed_node/imu/data"/>
         <remap from="/zed2/zed_node/left/image_rect_color/compressed" to="$(arg robot_name)/zed2/zed_node/left/image_rect_color/compressed"/>
@@ -34,12 +34,14 @@
     <group ns="$(arg robot_name)">
         <!--Measure the RAM and CPU usage for the system and each node-->
         <include file="$(find cpu_monitor)/launch/cpu_monitor.launch">
-            <arg name="poll_period" value="1.0"/>
+            <arg name="network_entity" value="$(arg network_entity)"/>
+            <arg name="poll_period" value="0.5"/>
         </include>
 
         <!--Log the total CPU consumption-->
-        <node name="log_cpu_total" type="log_cpu_total" pkg="cpu_monitor" output="screen">
+        <node name="log_cpu_total_$(arg network_entity)" type="log_cpu_total" pkg="cpu_monitor" output="screen">
             <param name="robot_name" type="string" value="$(arg robot_name)"/>
+            <param name="network_entity" type="string" value="$(arg network_entity)"/>
         </node>
 
         <!--TF from base_link to body, must be better adjusted-->
@@ -51,6 +53,7 @@
             <arg name="rviz" value="false"/>
             <arg name="robot_name" value="$(arg robot_name)"/>
             <arg name="do_log" value="true"/>
+            <arg name="network_entity" value="$(arg network_entity)"/>
         </include>
 
         <!--Lidar and color fusion algorithm-->
@@ -62,6 +65,7 @@
         <node name="log_$(arg project_image_pointcloud_node_name)" if="$(arg do_log)" pkg="cpu_monitor" type="log_ram_cpu_node" output="screen">
             <param name="robot_name" type="string" value="$(arg robot_name)"/>
             <param name="node_name" type="string" value="$(arg project_image_pointcloud_node_name)"/>
+            <param name="network_entity" type="string" value="$(arg network_entity)"/>
         </node>
 
         <!--Scan context algorithm to detect loop closure-->
@@ -69,6 +73,7 @@
             <arg name="rvizscpgo" value="false"/>
             <arg name="robot_name" value="$(arg robot_name)"/>
             <arg name="do_log" value="true"/>
+            <arg name="network_entity" value="$(arg network_entity)"/>
         </include>
         <!--    <include file="$(find aloam_velodyne)/launch/fastlio_ouster64.launch">
                 <arg name="rvizscpgo" value="false"/>
@@ -84,6 +89,7 @@
         <node name="log_$(arg final_mesh_server_node_name)" if="$(arg do_log)" pkg="cpu_monitor" type="log_ram_cpu_node" output="screen">
             <param name="robot_name" type="string" value="$(arg robot_name)"/>
             <param name="node_name" type="string" value="$(arg final_mesh_server_node_name)"/>
+            <param name="network_entity" type="string" value="$(arg network_entity)"/>
         </node>
 
         <!--Visualize with our settings-->
@@ -95,6 +101,7 @@
             <node name="log_$(arg rviz_uwo_name)" if="$(arg do_log)" pkg="cpu_monitor" type="log_ram_cpu_node" output="screen">
                 <param name="robot_name" type="string" value="$(arg robot_name)"/>
                 <param name="node_name" type="string" value="$(arg rviz_uwo_name)"/>
+                <param name="network_entity" type="string" value="$(arg network_entity)"/>
             </node>
         </group>
 

@@ -15,7 +15,6 @@
 
 using namespace std;
 
-string robot_name, node_name;
 vector<size_t> rams;
 vector<float> cpus;
 mutex mtx;
@@ -45,13 +44,15 @@ int main(int argc, char **argv)
   ros::NodeHandle n_("~");
 
   float pct_cpu_idle;
+  string robot_name, node_name, network_entity;
   n_.param<string>("robot_name", robot_name, "robot");
   n_.param<string>("node_name", node_name, "node");
+  n_.param<string>("network_entity", network_entity, "fog");
   n_.param<float>("pct_cpu_idle", pct_cpu_idle, 15);
   pct_cpu_idle = 15.0; // easier this way
 
-  string ram_topic_name = "/"+robot_name+"/cpu_monitor/"+robot_name+"/"+node_name+"/mem";
-  string cpu_topic_name = "/"+robot_name+"/cpu_monitor/"+robot_name+"/"+node_name+"/cpu";
+  string ram_topic_name = "/"+robot_name+"/"+network_entity+"_cpu_monitor/"+robot_name+"/"+node_name+"/mem";
+  string cpu_topic_name = "/"+robot_name+"/"+network_entity+"_cpu_monitor/"+robot_name+"/"+node_name+"/cpu";
   ros::Subscriber sub1 = nh.subscribe(ram_topic_name, 100, &ramCallback);
   ros::Subscriber sub2 = nh.subscribe(cpu_topic_name, 100, &cpuCallback);
 
@@ -62,7 +63,7 @@ int main(int argc, char **argv)
   }
 
   // This subscribes the whole percentage, so we can monitor if the processes are over
-  string mon_topic_name = "/"+robot_name+"/cpu_monitor/total_cpu";
+  string mon_topic_name = "/"+robot_name+"/"+network_entity+"_cpu_monitor/total_cpu";
   ros::Subscriber sub3 = nh.subscribe(mon_topic_name, 100, &processCallback);
 
   while(ros::ok()){
