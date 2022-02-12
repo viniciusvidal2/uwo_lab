@@ -85,6 +85,8 @@ def work_ram(ram, arch):
     plt.show()
 
     # Plot the total RAM evolution in percentage for edge and fog
+    ram_edge = np.zeros_like(ram.final_mesh_server_node)
+    ram_fog = np.zeros_like(ram.final_mesh_server_node)
     if arch == 0 or arch == 1:
         ram_fog = ram_fastlio + ram_fusecolor + ram_scancontext + ram_mesh
     elif arch == 2:
@@ -96,8 +98,7 @@ def work_ram(ram, arch):
     elif arch == 4:
         ram_edge = ram_fastlio + ram_fusecolor + ram_scancontext
         ram_fog = ram_mesh
-    if 'ram_edge' in locals():
-        plt.plot(np.arange(0, len(ram_edge), 1, dtype=int), ram_edge, 'g', label='Edge node')
+    plt.plot(np.arange(0, len(ram_edge), 1, dtype=int), ram_edge, 'g', label='Edge node')
     plt.plot(np.arange(0, len(ram_fog), 1, dtype=int), ram_fog, 'b', label='Fog node')
     plt.xlim([0, len(ram_fog)])
     plt.ylim([0, 100])
@@ -107,6 +108,8 @@ def work_ram(ram, arch):
     plt.legend()
     plt.grid()
     plt.show()
+
+    return np.max(ram_edge), np.max(ram_fog)
 
 
 def work_latency(lat, arch):

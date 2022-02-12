@@ -52,9 +52,10 @@
 #include <gtsam/nonlinear/LevenbergMarquardtOptimizer.h>
 #include <gtsam/nonlinear/ISAM2.h>
 
-#include "open3d/geometry/PointCloud.h"
-#include "open3d/geometry/Geometry3D.h"
-#include "open3d/pipelines/registration/ColoredICP.h"
+#include "Open3D/Geometry/PointCloud.h"
+#include "Open3D/Geometry/Geometry3D.h"
+#include "Open3D/Registration/ColoredICP.h"
+#include "Open3D/Registration/TransformationEstimation.h"
 
 #include "aloam_velodyne/common.h"
 #include "aloam_velodyne/tic_toc.h"
@@ -62,6 +63,7 @@
 #include "mesh_open3d/cloud.h"
 
 using namespace gtsam;
+using namespace std;
 
 using std::cout;
 using std::endl;
@@ -515,65 +517,64 @@ std::optional<gtsam::Pose3> doICPVirtualRelative( int _loop_kf_idx, int _curr_kf
   targetKeyframeCloudMsg.header.frame_id = "camera_init";
   pubLoopSubmapLocal.publish(targetKeyframeCloudMsg);
 
-  // Convert point clouds
-  o3g::PointCloud src_o, tgt_o;
-  src_o = convertPCL2Open3D(cureKeyframeCloud);
-  tgt_o = convertPCL2Open3D(targetKeyframeCloud);
-  src_o.EstimateNormals();
-  tgt_o.EstimateNormals();
+//  // Convert point clouds
+//  o3g::PointCloud src_o, tgt_o;
+//  src_o = convertPCL2Open3D(cureKeyframeCloud);
+//  tgt_o = convertPCL2Open3D(targetKeyframeCloud);
+//  src_o.EstimateNormals();
+//  tgt_o.EstimateNormals();
 
-  // Perform ICP
-  auto icp_result = o3d::pipelines::registration::RegistrationColoredICP(src_o, tgt_o,
-                    10*downSizeFilterICP.getLeafSize().x(), Eigen::Matrix4d::Identity(),
-                    o3d::pipelines::registration::TransformationEstimationForColoredICP(),
-                    o3d::pipelines::registration::ICPConvergenceCriteria(9.9999e-09, 9.9999e-09, 300));
+//  // Perform ICP
+//  auto icp_result = o3d::registration::RegistrationColoredICP(src_o, tgt_o,
+//                    10*downSizeFilterICP.getLeafSize().x(), Eigen::Matrix4d::Identity(),
+//                    o3d::registration::ICPConvergenceCriteria(9.9999e-09, 9.9999e-09, 300));
 
-  // Check if it has passed
-  float loopFitnessScoreThreshold = 0.90; // user parameter but fixed low value is safe.
-  if (icp_result.fitness_ < loopFitnessScoreThreshold) {
-    std::cout << "[SC loop] ICP fitness test failed (" << icp_result.fitness_ << " > " << loopFitnessScoreThreshold << "). Reject this SC loop." << std::endl;
-    return std::nullopt;
-  } else {
-    std::cout << "[SC loop] ICP fitness test passed (" << icp_result.fitness_ << " < " << loopFitnessScoreThreshold << "). Add this SC loop." << std::endl;
-  }
-
-  // Get pose transformation
-  float x, y, z, roll, pitch, yaw;
-  Eigen::Affine3f correctionLidarFrame;
-  correctionLidarFrame = icp_result.transformation_.cast<float>();//icp.getFinalTransformation();
-  pcl::getTranslationAndEulerAngles (correctionLidarFrame, x, y, z, roll, pitch, yaw);
-  gtsam::Pose3 poseFrom = Pose3(Rot3::RzRyRx(roll, pitch, yaw), Point3(x, y, z));
-  gtsam::Pose3 poseTo = Pose3(Rot3::RzRyRx(0.0, 0.0, 0.0), Point3(0.0, 0.0, 0.0));
-
-//  // ICP Settings
-//  pcl::IterativeClosestPoint<PointType, PointType> icp;
-//  icp.setMaxCorrespondenceDistance(150); // giseop , use a value can cover 2*historyKeyframeSearchNum range in meter
-//  icp.setMaximumIterations(200);
-//  icp.setTransformationEpsilon(1e-6);
-//  icp.setEuclideanFitnessEpsilon(1e-6);
-//  icp.setRANSACIterations(10);
-
-//  // Align pointclouds
-//  icp.setInputSource(cureKeyframeCloud);
-//  icp.setInputTarget(targetKeyframeCloud);
-//  pcl::PointCloud<PointType>::Ptr unused_result(new pcl::PointCloud<PointType>());
-//  icp.align(*unused_result);
-
-//  float loopFitnessScoreThreshold = 0.5; // user parameter but fixed low value is safe.
-//  if (icp.hasConverged() == false || icp.getFitnessScore() > loopFitnessScoreThreshold) {
-//    std::cout << "[SC loop] ICP fitness test failed (" << icp.getFitnessScore() << " > " << loopFitnessScoreThreshold << "). Reject this SC loop." << std::endl;
+//  // Check if it has passed
+//  float loopFitnessScoreThreshold = 0.90; // user parameter but fixed low value is safe.
+//  if (icp_result.fitness_ < loopFitnessScoreThreshold) {
+//    std::cout << "[SC loop] ICP fitness test failed (" << icp_result.fitness_ << " > " << loopFitnessScoreThreshold << "). Reject this SC loop." << std::endl;
 //    return std::nullopt;
 //  } else {
-//    std::cout << "[SC loop] ICP fitness test passed (" << icp.getFitnessScore() << " < " << loopFitnessScoreThreshold << "). Add this SC loop." << std::endl;
+//    std::cout << "[SC loop] ICP fitness test passed (" << icp_result.fitness_ << " < " << loopFitnessScoreThreshold << "). Add this SC loop." << std::endl;
 //  }
 
 //  // Get pose transformation
 //  float x, y, z, roll, pitch, yaw;
 //  Eigen::Affine3f correctionLidarFrame;
-//  correctionLidarFrame = icp.getFinalTransformation();
+//  correctionLidarFrame = icp_result.transformation_.cast<float>();//icp.getFinalTransformation();
 //  pcl::getTranslationAndEulerAngles (correctionLidarFrame, x, y, z, roll, pitch, yaw);
 //  gtsam::Pose3 poseFrom = Pose3(Rot3::RzRyRx(roll, pitch, yaw), Point3(x, y, z));
 //  gtsam::Pose3 poseTo = Pose3(Rot3::RzRyRx(0.0, 0.0, 0.0), Point3(0.0, 0.0, 0.0));
+
+  // ICP Settings
+  pcl::IterativeClosestPoint<PointType, PointType> icp;
+  icp.setMaxCorrespondenceDistance(150); // giseop , use a value can cover 2*historyKeyframeSearchNum range in meter
+  icp.setMaximumIterations(200);
+  icp.setTransformationEpsilon(1e-6);
+  icp.setEuclideanFitnessEpsilon(1e-6);
+  icp.setRANSACIterations(10);
+
+  // Align pointclouds
+  icp.setInputSource(cureKeyframeCloud);
+  icp.setInputTarget(targetKeyframeCloud);
+  pcl::PointCloud<PointType>::Ptr unused_result(new pcl::PointCloud<PointType>());
+  icp.align(*unused_result);
+
+  float loopFitnessScoreThreshold = 0.3; // user parameter but fixed low value is safe.
+  if (icp.hasConverged() == false || icp.getFitnessScore() > loopFitnessScoreThreshold) {
+    std::cout << "[SC loop] ICP fitness test failed (" << icp.getFitnessScore() << " > " << loopFitnessScoreThreshold << "). Reject this SC loop." << std::endl;
+    return std::nullopt;
+  } else {
+    std::cout << "[SC loop] ICP fitness test passed (" << icp.getFitnessScore() << " < " << loopFitnessScoreThreshold << "). Add this SC loop." << std::endl;
+  }
+
+  // Get pose transformation
+  float x, y, z, roll, pitch, yaw;
+  Eigen::Affine3f correctionLidarFrame;
+  correctionLidarFrame = icp.getFinalTransformation();
+  pcl::getTranslationAndEulerAngles (correctionLidarFrame, x, y, z, roll, pitch, yaw);
+  gtsam::Pose3 poseFrom = Pose3(Rot3::RzRyRx(roll, pitch, yaw), Point3(x, y, z));
+  gtsam::Pose3 poseTo = Pose3(Rot3::RzRyRx(0.0, 0.0, 0.0), Point3(0.0, 0.0, 0.0));
 
   return poseFrom.between(poseTo);
 } // doICPVirtualRelative

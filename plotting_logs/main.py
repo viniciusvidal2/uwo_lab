@@ -69,15 +69,60 @@ if __name__ == '__main__':
     ####################################################################
     tp = Struct()
     tp.im_source_fusecolor = msg_size.fusecolor_im/lat.source_fusecolor_im
+    tp.im_source_fusecolor[tp.im_source_fusecolor > 1e308] = 0
     tp.cloud_source_fastlio = msg_size.fusecolor_cloudin/lat.source_fastlio_cloud[0:len(msg_size.fusecolor_cloudin)]
+    tp.cloud_source_fastlio[tp.cloud_source_fastlio > 1e308] = 0
     tp.cloud_fastlio_fusecolor = msg_size.fusecolor_cloudin/lat.fastlio_fusecolor_cloud
+    tp.cloud_fastlio_fusecolor[tp.cloud_fastlio_fusecolor > 1e308] = 0
     tp.cloud_fusecolor_scancontext = msg_size.fusecolor_cloudout/lat.fusecolor_scancontext_cloud
+    tp.cloud_fusecolor_scancontext[tp.cloud_fusecolor_scancontext > 1e308] = 0
 
     ####################################################################################################################
 
     ####################################################################
-    ###### Plot CPU data
+    ###### Time for a point cloud to go from source to SC
+    ####################################################################
+    total_t_process = np.max(pt.fastlio_filt) + np.max(pt.fusecolor_filt) + np.max(pt.scancontext_filt)
+    total_t_latency = np.max(lat.source_fastlio_cloud) + np.max(lat.fastlio_fusecolor_cloud) \
+                      + np.max(lat.fusecolor_scancontext_cloud)
+    time_full_cloud_process = total_t_process + total_t_latency
+
+    ####################################################################
+    ###### Max. CPU in each device, plus plots
     ####################################################################
     work_cpu(cpu=cpu, arch=architecture)
-    work_ram(ram=ram, arch=architecture)
+    max_cpu_edge = np.max(cpu.total_edge) if 'cpu.total_edge' in locals() else 0
+    max_cpu_fog = np.max(cpu.total_fog)
+
+    ####################################################################
+    ###### Max. RAM in each device, plus plots
+    ####################################################################
+    max_ram_edge, max_ram_fog = work_ram(ram=ram, arch=architecture)
+
+    ####################################################################
+    ###### Max. Throughtput requested by this architecture
+    ####################################################################
+    tp_max_requested = np.max(tp.im_source_fusecolor)
+    if architecture == 0 or architecture == 1:
+        tp_max_requested += np.max(tp.cloud_source_fastlio)
+    elif architecture == 2:
+        tp_max_requested += np.max(tp.cloud_fastlio_fusecolor)
+    elif architecture == 3:
+        tp_max_requested += np.max(tp.cloud_fusecolor_scancontext)
+
+    ####################################################################
+    ###### Analysing latency, plus plots
+    ####################################################################
     lat_mean, lat_std = work_latency(lat=lat, arch=architecture)
+
+    ####################################################################
+    ###### Saving interesting data in output table
+    ####################################################################
+    output_data = {'Max CPU Edge': max_cpu_edge, 'Max CPU Fog': max_cpu_fog,
+                   'Max RAM Edge': max_ram_edge, 'Max RAM Fog': max_ram_fog,
+                   'Mean Latency': lat_mean,
+                   'Max throughput requested': tp_max_requested,
+                   'Time for cloud process': time_full_cloud_process}
+    data_table = pd.DataFrame.from_dict(output_data, orient='index', columns=['Value'])
+    print(data_table)
+    data_table.to_csv(os.path.join(folder, 'data_table.csv'), header=False, float_format='%.2f')

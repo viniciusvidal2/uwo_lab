@@ -50,7 +50,7 @@ int main(int argc, char **argv)
     r2.sleep();
     ros::spinOnce();
 
-    if(current_total_cpu <= pct_cpu_idle && pct_cpu_idle > 0 && cpus.size() > 15){
+    if(current_total_cpu <= pct_cpu_idle && pct_cpu_idle > 0 && cpus.size() > 30){
       // Wait 5 seconds
       ros::Rate rr(2);
       for (int i=0; i<10; i++){

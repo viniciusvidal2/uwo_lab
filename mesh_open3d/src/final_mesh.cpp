@@ -34,20 +34,21 @@
 #include <pcl/kdtree/kdtree_flann.h>
 #include <pcl/kdtree/kdtree.h>
 
-#include "open3d/geometry/PointCloud.h"
-#include "open3d/geometry/BoundingVolume.h"
-#include "open3d/geometry/KDTreeFlann.h"
-#include "open3d/geometry/VoxelGrid.h"
-#include "open3d/geometry/Geometry3D.h"
-#include "open3d/geometry/KDTreeFlann.h"
-#include "open3d/geometry/KDTreeSearchParam.h"
-#include "open3d/core/nns/NearestNeighborSearch.h"
-#include "open3d/Open3D.h"
-#include "open3d/geometry/MeshBase.h"
-#include "open3d/geometry/TriangleMesh.h"
-#include "open3d/pipelines/registration/ColoredICP.h"
+#include "Open3D/Geometry/PointCloud.h"
+#include "Open3D/Geometry/BoundingVolume.h"
+#include "Open3D/Geometry/KDTreeFlann.h"
+#include "Open3D/Geometry/VoxelGrid.h"
+#include "Open3D/Geometry/Geometry3D.h"
+#include "Open3D/Geometry/KDTreeFlann.h"
+#include "Open3D/Geometry/KDTreeSearchParam.h"
+//#include "open3d/core/nns/NearestNeighborSearch.h"
+#include "Open3D/Open3D.h"
+#include "Open3D/Geometry/MeshBase.h"
+#include "Open3D/Geometry/TriangleMesh.h"
+#include "Open3D/IO/ClassIO/TriangleMeshIO.h"
+#include "Open3D/IO/ClassIO/PointCloudIO.h"
 
-#include "uwo_pack/cloud.h"
+#include "mesh_open3d/cloud.h"
 
 using namespace pcl;
 using namespace std;
@@ -79,9 +80,6 @@ void compute_normals_efficient(PointCloud<PointT>::Ptr in, PointCloud<PointXYZRG
   ne.compute(*normals);
   // Add cloud components
   concatenateFields(*in, *normals, *out);
-  // Filter NaN normals
-  std::vector<int> indicesnan;
-  removeNaNNormalsFromPointCloud(*out, *out, indicesnan);
 }
 
 /// Check normals directions
@@ -144,7 +142,7 @@ o3g::PointCloud convertPCL2Open3D(PointCloud<PointXYZRGBNormal>::Ptr c){
     ptc.normals_[i][1] = double(c->points[i].normal_y);
     ptc.normals_[i][2] = double(c->points[i].normal_z);
   }
-  ptc.NormalizeNormals();
+//  ptc.NormalizeNormals();
   return ptc;
 }
 void convertOpen3D2PCL(PointCloud<PointXYZRGBNormal>::Ptr c, o3g::PointCloud o){
@@ -171,7 +169,7 @@ vector<bool> find_low_densities(vector<double> densities, double thresh){
 
 /// Service Callback
 ///
-bool work_cloud(uwo_pack::cloud::Request &req, uwo_pack::cloud::Response &res){
+bool work_cloud(mesh_open3d::cloud::Request &req, mesh_open3d::cloud::Response &res){
   ROS_INFO("Service called to calculate final mesh!");
   ros::Time t;
   // Convert the message into PCL
@@ -200,6 +198,7 @@ bool work_cloud(uwo_pack::cloud::Request &req, uwo_pack::cloud::Response &res){
   ///// Calculate with no processing, only for comparison
   ROS_INFO("Calculating the mesh for whole point cloud ...");
   t = ros::Time::now();
+  o3d_cloud.EstimateNormals();
   auto mesh_tuple = o3g::TriangleMesh::CreateFromPointCloudPoisson(o3d_cloud, 10);
   o3d_cloud.Clear();
   vector<bool> indices_to_remove = find_low_densities(get<1>(mesh_tuple), 0.09);
@@ -207,7 +206,7 @@ bool work_cloud(uwo_pack::cloud::Request &req, uwo_pack::cloud::Response &res){
   ROS_WARN("Mesh calculated in %.6f seconds ...", (ros::Time::now() - t).toSec());
 
   ROS_INFO("Saving the mesh in %s ...", save_directory.c_str());
-  o3d::io::WriteTriangleMesh(save_directory+"/output_mesh.ply", *get<0>(mesh_tuple));
+//  o3d::io::WriteTriangleMesh(save_directory+"/output_mesh.ply", *get<0>(mesh_tuple));
 
   res.answer = get<0>(mesh_tuple)->IsEmpty() ? false : true;
   return true;
@@ -223,7 +222,7 @@ int main(int argc, char **argv)
   nh.param<string>("robot_name", robot_name, "robot");
   nh.getParam("mesh_save_directory", save_directory);
 
-  ros::ServiceServer server = nh.advertiseService("/"+robot_name+"/calculate_mesh", work_cloud);
+  ros::ServiceServer server = nh.advertiseService("/"+robot_name+"/calculate_mesh", &work_cloud);
   ROS_INFO("Server for mesh calculation is already running.");
 //  ros::Time t;
 
