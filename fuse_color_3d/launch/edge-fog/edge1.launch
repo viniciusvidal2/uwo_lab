@@ -41,9 +41,9 @@
         </include>
 
         <!--Log the total CPU consumption-->
-        <node name="log_cpu_total" type="log_cpu_total" pkg="cpu_monitor" output="screen">
+        <node name="log_cpu_total_$(arg network_entity)" type="log_cpu_total" pkg="cpu_monitor" output="screen">
             <param name="robot_name" type="string" value="$(arg robot_name)"/>
-            <param name="network_entity" type="string" value="edge"/>
+            <param name="network_entity" type="string" value="$(arg network_entity)"/>
         </node>
     </group>
 </launch>

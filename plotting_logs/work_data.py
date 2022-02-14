@@ -35,8 +35,7 @@ def work_cpu(cpu, arch):
     plt.show()
 
     # Plot the total CPU usage
-    if 'cpu.total_edge' in locals():
-        plt.plot(np.arange(0, len(cpu.total_edge), 1, dtype=int), cpu.total_edge, 'g', label='Edge node')
+    plt.plot(np.arange(0, len(cpu.total_edge), 1, dtype=int), cpu.total_edge, 'g', label='Edge node')
     plt.plot(np.arange(0, len(cpu.total_fog), 1, dtype=int), cpu.total_fog, 'b', label='Fog node')
     plt.xlim([0, len(cpu.total_fog)])
     plt.ylim([0, 100])

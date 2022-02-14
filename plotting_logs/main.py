@@ -42,9 +42,9 @@ if __name__ == '__main__':
     msg_size.fusecolor_cloudout = read_log_file(folder, 'messagesize_fusecolor_cloudout.txt')
     ## CPU usage
     cpu = Struct()
-    if os.path.isfile(os.path.join(folder, 'cpu_total_edge.txt')):
-        cpu.total_edge = read_log_file(folder, 'cpu_total_edge.txt')
     cpu.total_fog = read_log_file(folder, 'cpu_total_fog.txt')
+    cpu.total_edge = read_log_file(folder, 'cpu_total_edge.txt') if os.path.isfile(os.path.join(folder,
+                    'cpu_total_edge.txt')) else np.zeros_like(cpu.total_fog)
     cpu.scan_context_node = read_log_file(folder, 'cpu_scan_context_node.txt')
     cpu.project_image_pointcloud_node = read_log_file(folder, 'cpu_project_image_pointcloud_node.txt')
     cpu.final_mesh_server_node = read_log_file(folder, 'cpu_final_mesh_server_node.txt')
