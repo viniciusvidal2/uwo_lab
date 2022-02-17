@@ -3,6 +3,7 @@
     <!--List of arguments-->
     <arg name="source_from_bag" default="true"/>
     <arg name="bag" default="$(env HOME)/Desktop/corredor1"/>
+    <arg name="bag_start" default="0"/>
     <arg name="robot_name" default="robot"/>
     <arg name="do_log" default="true"/>
     <arg name="network_entity" default="fog"/>
@@ -13,7 +14,7 @@
         <remap from="/zed2/zed_node/left/image_rect_color/compressed" to="$(arg robot_name)/zed2/zed_node/left/image_rect_color/compressed"/>
         <remap from="/livox/lidar" to="$(arg robot_name)/livox/lidar"/>
         <remap from="/clock" to="$(arg robot_name)/clock"/>
-        <node pkg="rosbag" type="play" name="rosbag_player" output="screen" args="$(arg bag).bag --clock -s 300">
+        <node pkg="rosbag" type="play" name="$(arg robot_name)_bag" output="screen" args="$(arg bag).bag --clock -s $(arg bag_start)">
         </node>
     </group>
 
@@ -61,6 +62,7 @@
         <node name="$(arg project_image_pointcloud_node_name)" type="project_cloud_cpu_node" pkg="fuse_color_3d" output="screen">
             <rosparam file="$(find fuse_color_3d)/config/zed_params.yaml"/>
             <param name="robot_name" type="string" value="$(arg robot_name)"/>
+            <param name="save_acc_cloud" type="bool" value="false"/>
         </node>
         <node name="log_$(arg project_image_pointcloud_node_name)" if="$(arg do_log)" pkg="cpu_monitor" type="log_ram_cpu_node" output="screen">
             <param name="robot_name" type="string" value="$(arg robot_name)"/>
@@ -93,7 +95,7 @@
         </node>
 
         <!--Visualize with our settings-->
-        <arg name="visualize" default="false"/>
+        <arg name="visualize" default="true"/>
         <arg name="rviz_uwo_name" value="rviz_uwo"/>
         <group if="$(arg visualize)">
             <node name="$(arg rviz_uwo_name)" pkg="rviz" type="rviz" args=" -d $(find fuse_color_3d)/resources/visualize.rviz" output="screen">

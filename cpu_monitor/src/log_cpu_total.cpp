@@ -32,12 +32,12 @@ int main(int argc, char **argv)
   ros::NodeHandle nh;
   ros::NodeHandle n_("~");
 
-  string robot_name, entity_name;
+  string robot_name, network_entity;
   n_.param<string>("robot_name", robot_name, "robot");
-  n_.param<string>("entity_name", entity_name, "fog");
+  n_.param<string>("network_entity", network_entity, "fog");
   float pct_cpu_idle = 15.0;
 
-  string cpu_topic_name = "/"+robot_name+"/"+entity_name+"_cpu_monitor/total_cpu";
+  string cpu_topic_name = "/"+robot_name+"/"+network_entity+"_cpu_monitor/total_cpu";
   ros::Subscriber sub2 = nh.subscribe(cpu_topic_name, 100, &cpuCallback);
 
   ros::Rate r1(1), r2(10);
@@ -67,12 +67,12 @@ int main(int argc, char **argv)
       // Open the files in the folder
       FILE *fp;
       // For each data type, write the results to the file
-      fp = fopen((log_dir+"/cpu_total_"+entity_name+".txt").c_str(),"w");
+      fp = fopen((log_dir+"/cpu_total_"+network_entity+".txt").c_str(),"w");
       for(auto c:cpus)
         fprintf(fp, "%.2f\n", c);
       fclose(fp);
       mtx.unlock();
-      ROS_INFO("Wrote logs for node log_cpu_total at %s !", entity_name.c_str());
+      ROS_INFO("Wrote logs for node log_cpu_total at %s !", network_entity.c_str());
       ros::shutdown();
     }
   }

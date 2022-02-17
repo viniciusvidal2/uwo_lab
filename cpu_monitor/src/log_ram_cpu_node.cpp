@@ -49,7 +49,7 @@ int main(int argc, char **argv)
   n_.param<string>("node_name", node_name, "node");
   n_.param<string>("network_entity", network_entity, "fog");
   n_.param<float>("pct_cpu_idle", pct_cpu_idle, 15);
-  pct_cpu_idle = 15.0; // easier this way
+  pct_cpu_idle = 12.0; // easier this way
 
   string ram_topic_name = "/"+robot_name+"/"+network_entity+"_cpu_monitor/"+robot_name+"/"+node_name+"/mem";
   string cpu_topic_name = "/"+robot_name+"/"+network_entity+"_cpu_monitor/"+robot_name+"/"+node_name+"/cpu";
@@ -70,7 +70,7 @@ int main(int argc, char **argv)
     r2.sleep();
     ros::spinOnce();
 
-    if(current_total_cpu <= pct_cpu_idle && pct_cpu_idle > 0 && cpus.size() > 30){
+    if(current_total_cpu <= pct_cpu_idle && pct_cpu_idle > 0 && cpus.size() > 100){
       // Wait 5 seconds
       ros::Rate rr(2);
       for (int i=0; i<10; i++){

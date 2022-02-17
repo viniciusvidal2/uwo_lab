@@ -32,9 +32,13 @@ if __name__ == '__main__':
     ## Latency
     lat = Struct()
     lat.source_fastlio_cloud = read_log_file(folder, 'latencies_source_fastlio_cloud.txt')
+    lat.source_fastlio_cloud[lat.source_fastlio_cloud > 1] = 0
     lat.source_fusecolor_im = read_log_file(folder, 'latencies_source_fusecolor_im.txt')
+    lat.source_fusecolor_im[lat.source_fusecolor_im > 1] = 0
     lat.fastlio_fusecolor_cloud = read_log_file(folder, 'latencies_fastlio_fusecolor_cloud.txt')
+    lat.fastlio_fusecolor_cloud[lat.fastlio_fusecolor_cloud > 1] = 0
     lat.fusecolor_scancontext_cloud = read_log_file(folder, 'latencies_fusecolor_scancontext_cloud.txt')
+    lat.fusecolor_scancontext_cloud[lat.fusecolor_scancontext_cloud > 1] = 0
     ## Message sizes
     msg_size = Struct()
     msg_size.fusecolor_im = read_log_file(folder, 'messagesize_fusecolor_im.txt')

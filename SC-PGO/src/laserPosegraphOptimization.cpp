@@ -23,6 +23,7 @@
 #include <pcl/octree/octree_pointcloud_voxelcentroid.h>
 #include <pcl/filters/crop_box.h> 
 #include <pcl_conversions/pcl_conversions.h>
+#include <pcl/features/normal_3d_omp.h>
 
 #include <ros/ros.h>
 #include <sensor_msgs/Imu.h>
@@ -150,13 +151,71 @@ ros::Subscriber subLaserOdometry;
 vector<double> latencies, process_times;
 
 // Check index pairs being added to the graph
-int last_previous, last_curr, count_same = 0;
+int prev_count_kf, count_same = 0;
 // Definitions for Open3D
 namespace o3d = open3d;
 namespace o3g = open3d::geometry;
 // Name to differentiate robot, mainly in logs and topics
 string robot_name;
 bool write_logs = true;
+
+/// Compute normals in parallel
+///
+void compute_normals_efficient(pcl::PointCloud<pcl::PointXYZRGB>::Ptr in, pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr out){
+  // Initi normal estimator
+  pcl::search::KdTree<pcl::PointXYZRGB>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZRGB>());
+  pcl::NormalEstimationOMP<pcl::PointXYZRGB, pcl::Normal> ne;
+  ne.setInputCloud(in);
+  ne.setSearchMethod(tree);
+  ne.setKSearch(30);
+  ne.setNumberOfThreads(100);
+  // Normals cloud
+  pcl::PointCloud<pcl::Normal>::Ptr normals (new pcl::PointCloud<pcl::Normal>());
+  ne.compute(*normals);
+  // Add cloud components
+  concatenateFields(*in, *normals, *out);
+}
+
+/// Check normals directions
+///
+void check_normals_orientations(pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr in){
+  // Create point cloud from odometry data
+  pcl::PointCloud<pcl::PointXYZ>::Ptr odom (new pcl::PointCloud<pcl::PointXYZ>);
+  odom->resize(keyframePosesUpdated.size());
+#pragma omp parallel for
+  for (size_t i=0; i<keyframePosesUpdated.size(); i++) {
+    odom->points[i].x = keyframePosesUpdated[i].x;
+    odom->points[i].y = keyframePosesUpdated[i].y;
+    odom->points[i].z = keyframePosesUpdated[i].z;
+  }
+
+  // Find closest point with kdtree search
+  pcl::KdTreeFLANN<pcl::PointXYZ>::Ptr tree (new pcl::KdTreeFLANN<pcl::PointXYZ>);
+  tree->setInputCloud(odom);
+
+  // For each point in original point cloud
+#pragma omp parallel for
+  for (size_t i=0; i<in->size(); i++) {
+    vector<int> indices;
+    vector<float> dists;
+    pcl::PointXYZ p;
+    p.x = in->points[i].x; p.y = in->points[i].y; p.z = in->points[i].z;
+    tree->nearestKSearch(p, 1, indices, dists);
+    // Calculate angle between direction and current normal
+    Eigen::Vector3f normal, cp, C;
+    C << odom->points[indices[0]].x, odom->points[indices[0]].y, odom->points[indices[0]].z;
+    normal << in->points[i].normal_x, in->points[i].normal_y, in->points[i].normal_z;
+    cp << C(0) - p.x, C(1) - p.y, C(2) - p.z;
+    float cos_theta = (normal.dot(cp))/(normal.norm()*cp.norm());
+
+    // If pointing to the opposite side, twist it
+    if(cos_theta <= 0){
+      in->points[i].normal_x = -in->points[i].normal_x;
+      in->points[i].normal_y = -in->points[i].normal_y;
+      in->points[i].normal_z = -in->points[i].normal_z;
+    }
+  }
+}
 
 
 /// Convert PCL cloud to Open3D
@@ -745,76 +804,78 @@ void performSCLoopClosure(void)
   if( int(keyframePoses.size()) < scManager.NUM_EXCLUDE_RECENT) // do not try too early
     return;
 
-    auto detectResult = scManager.detectLoopClosureID(); // first: nn index, second: yaw diff
-    int SCclosestHistoryFrameID = detectResult.first;
-    if( SCclosestHistoryFrameID != -1 ) {
-      const int prev_node_idx = SCclosestHistoryFrameID;
-      const int curr_node_idx = keyframePoses.size() - 1; // because cpp starts 0 and ends n-1
-      cout << "Loop detected! - between " << prev_node_idx  << " " << last_previous << " and " << curr_node_idx << " " << last_curr << endl;
+  auto detectResult = scManager.detectLoopClosureID(); // first: nn index, second: yaw diff
+  int SCclosestHistoryFrameID = detectResult.first;
+  count_same = ((keyframePosesUpdated.size() - 1) == prev_count_kf) ? count_same + 1 : 0;
 
-      // Control the detection to see if we have reached the end
-      count_same = (last_previous == prev_node_idx && last_curr == curr_node_idx) ? count_same + 1 : 0;
-      last_previous = prev_node_idx;
-      last_curr = curr_node_idx;
-      // Vinicius - Mission is done, so call service to build the mesh
-      if(count_same >= 10){ // reached the end, repeating on it
-        mBuf.lock();
-        laserCloudMapPGO->clear();
-        std::vector<double> xs(keyframePosesUpdated.size()), ys(keyframePosesUpdated.size()), zs(keyframePosesUpdated.size());
-        for (int node_idx=0; node_idx < recentIdxUpdated; node_idx++) {
-          *laserCloudMapPGO += *local2global(keyframeLaserCloudsFull[node_idx], keyframePosesUpdated[node_idx]);
-          xs[node_idx] = keyframePosesUpdated[node_idx].x;
-          ys[node_idx] = keyframePosesUpdated[node_idx].y;
-          zs[node_idx] = keyframePosesUpdated[node_idx].z;
-        }
-        //  downSizeFilterMapPGO.setInputCloud(laserCloudMapPGO);
-        //  downSizeFilterMapPGO.filter(*laserCloudMapPGO);
+  if( SCclosestHistoryFrameID != -1 ) {
+    const int prev_node_idx = SCclosestHistoryFrameID;
+    const int curr_node_idx = keyframePoses.size() - 1; // because cpp starts 0 and ends n-1
+    cout << "Loop detected! - between " << prev_node_idx << " and " << curr_node_idx << endl;
 
-        mesh_open3d::cloud srv_msg;
-        sensor_msgs::PointCloud2 cloud_msg;
-        pcl::toROSMsg(*laserCloudMapPGO, cloud_msg);
-        laserCloudMapPGO->clear();
-        srv_msg.request.cloud = cloud_msg;
-        srv_msg.request.xs = xs;
-        srv_msg.request.ys = ys;
-        srv_msg.request.zs = zs;
-        if(mesh_client.call(srv_msg))
-          ROS_INFO("Building up the final mesh");
-        else
-          ROS_ERROR("Could not build the final mesh, check if server is working properly.");
+    mBuf.lock();
+    scLoopICPBuf.push(std::pair<int, int>(prev_node_idx, curr_node_idx));
+    // addding actual 6D constraints in the other thread, icp_calculation.
+    mBuf.unlock();
+  }
 
-        // If no more incoming data, save the logs
-        if(subLaserOdometry.getNumPublishers() == 0){
-          // Check if the folder exists
-          string log_dir = string(getenv("HOME")) + "/Desktop/" + robot_name + "_log/";
-          if(!opendir(log_dir.c_str()))
-            boost::filesystem::create_directory(log_dir.c_str());
-          ROS_INFO("Writing logs to %s ...", log_dir.c_str());
-          // Open the files in the folder
-          FILE *fpp;
-          // For each data type, write the results to the file
-          fpp = fopen((log_dir+"/latencies_fusecolor_scancontext_cloud.txt").c_str(),"w");
-          for(auto l:latencies)
-            fprintf(fpp, "%.4f\n", l);
-          fclose(fpp);
-          fpp = fopen((log_dir+"/processtime_scancontext.txt").c_str(),"w");
-          for(auto pt:process_times)
-            fprintf(fpp, "%.4f\n", pt);
-          fclose(fpp);
-          ROS_INFO("Wrote logs !");
-//          write_logs = false;
-        }
-        mBuf.unlock();
-
-        // Finish this node
-        ros::shutdown();
-      }
-
-      mBuf.lock();
-      scLoopICPBuf.push(std::pair<int, int>(prev_node_idx, curr_node_idx));
-      // addding actual 6D constraints in the other thread, icp_calculation.
-      mBuf.unlock();
+  // Vinicius - Mission is done, so call service to build the mesh
+  if(count_same >= 10 && subLaserOdometry.getNumPublishers() == 0){
+    mBuf.lock();
+    laserCloudMapPGO->clear();
+//    std::vector<double> xs(keyframePosesUpdated.size()), ys(keyframePosesUpdated.size()), zs(keyframePosesUpdated.size());
+    for (int node_idx=0; node_idx < recentIdxUpdated; node_idx++) {
+      *laserCloudMapPGO += *local2global(keyframeLaserCloudsFull[node_idx], keyframePosesUpdated[node_idx]);
+//      xs[node_idx] = keyframePosesUpdated[node_idx].x;
+//      ys[node_idx] = keyframePosesUpdated[node_idx].y;
+//      zs[node_idx] = keyframePosesUpdated[node_idx].z;
     }
+    pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr cloud_mesh (new pcl::PointCloud<pcl::PointXYZRGBNormal>);
+    compute_normals_efficient(laserCloudMapPGO, cloud_mesh);
+    check_normals_orientations(cloud_mesh);
+    //  downSizeFilterMapPGO.setInputCloud(laserCloudMapPGO);
+    //  downSizeFilterMapPGO.filter(*laserCloudMapPGO);
+
+    mesh_open3d::cloud srv_msg;
+    sensor_msgs::PointCloud2 cloud_msg;
+    pcl::toROSMsg(*cloud_mesh, cloud_msg);
+    laserCloudMapPGO->clear();
+    srv_msg.request.cloud = cloud_msg;
+//    srv_msg.request.xs = xs;
+//    srv_msg.request.ys = ys;
+//    srv_msg.request.zs = zs;
+    if(mesh_client.call(srv_msg))
+      ROS_INFO("Building up the final mesh");
+    else
+      ROS_ERROR("Could not build the final mesh, check if server is working properly.");
+
+    // Save the logs
+    // Check if the folder exists
+    string log_dir = string(getenv("HOME")) + "/Desktop/" + robot_name + "_log/";
+    if(!opendir(log_dir.c_str()))
+      boost::filesystem::create_directory(log_dir.c_str());
+    ROS_INFO("Writing logs to %s ...", log_dir.c_str());
+    // Open the files in the folder
+    FILE *fpp;
+    // For each data type, write the results to the file
+    fpp = fopen((log_dir+"/latencies_fusecolor_scancontext_cloud.txt").c_str(),"w");
+    for(auto l:latencies)
+      fprintf(fpp, "%.4f\n", l);
+    fclose(fpp);
+    fpp = fopen((log_dir+"/processtime_scancontext.txt").c_str(),"w");
+    for(auto pt:process_times)
+      fprintf(fpp, "%.4f\n", pt);
+    fclose(fpp);
+    ROS_INFO("Wrote logs !");
+    //          write_logs = false;
+
+    mBuf.unlock();
+
+    // Finish this node
+    ros::shutdown();
+  }
+  prev_count_kf = keyframePosesUpdated.size() - 1;
+
 } // performSCLoopClosure
 
 void process_lcd(void)

@@ -52,7 +52,7 @@ typedef PointXYZ PointIn;
 typedef PointXYZRGB PointT;
 #define CLOUD_FRAME "body"
 PointCloud<PointIn>::Ptr cloud_in, cloud_save;
-PointCloud<PointT>::Ptr cloud_rgb;
+PointCloud<PointT>::Ptr cloud_rgb, cloud_acc;
 PassThrough<PointIn> pass;
 
 // Robot name to organize logs
@@ -84,6 +84,7 @@ nav_msgs::Odometry odom_msg_out;
 // Time control for new messages, to check if we have finished our goal
 ros::Time t_control_input;
 bool new_data = false;
+bool save_acc = false;
 
 // Current clock time
 ros::Time clk;
@@ -239,6 +240,15 @@ void processCallback(const ros::TimerEvent&){
       }
     }
 
+    // Accumulate the point cloud if we want to
+    if(save_acc){
+      Vector3f t {odom_msg_out.pose.pose.position.x, odom_msg_out.pose.pose.position.y, odom_msg_out.pose.pose.position.z};
+      Eigen::Quaternionf q{odom_msg_out.pose.pose.orientation.w, odom_msg_out.pose.pose.orientation.x,
+            odom_msg_out.pose.pose.orientation.y, odom_msg_out.pose.pose.orientation.z};
+      transformPointCloud<PointT>(*cloud_rgb, *cloud_rgb, t, q);
+      *cloud_acc += *cloud_rgb;
+    }
+
     new_data = false;
 
     // Finish and save how much time it took to process the data
@@ -254,6 +264,10 @@ void processCallback(const ros::TimerEvent&){
   if(im_sub.getNumPublishers() == 0){
     // Data is not coming anymore, so save the logs
     save_logs();
+    if(save_acc){
+      io::savePLYFileBinary(string(getenv("HOME"))+"/Desktop/acumulada_full.ply", *cloud_acc);
+      sleep(10);
+    }
     ROS_WARN("No new messages to send, closing node ...");
     ros::shutdown();
   }
@@ -324,6 +338,11 @@ int main(int argc, char **argv)
 
   // Robot name
   n_.param<string>("robot_name", robot_name, "robot");
+
+  // Save accumulated cloud or not
+  n_.param<bool>("save_acc_cloud", save_acc, false);
+  if(save_acc)
+    cloud_acc  = (PointCloud<PointT>::Ptr) new PointCloud<PointT>;
 
   // Initialize publishers
   cloud_publisher = nh.advertise<sensor_msgs::PointCloud2>("/"+robot_name+"/cloud_colored", 10000);

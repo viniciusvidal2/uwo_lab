@@ -185,7 +185,7 @@ bool work_cloud(mesh_open3d::cloud::Request &req, mesh_open3d::cloud::Response &
 
   t = ros::Time::now();
   ROS_INFO("Checking normals orientation ...");
-  check_normals_orientations(cloud_normals, req.xs, req.ys, req.zs);
+//  check_normals_orientations(cloud_normals, req.xs, req.ys, req.zs);
   ROS_WARN("Normals oriented in %.6f seconds ...", (ros::Time::now() - t).toSec());
 
   // Convert from PCL to Open3D

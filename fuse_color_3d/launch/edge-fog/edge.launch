@@ -1,0 +1,96 @@
+<?xml version="1.0"?>
+<launch>
+    <!--List of arguments-->
+    <arg name="source_from_bag" default="true"/>
+    <arg name="bag" default="$(env HOME)/Desktop/corredor1"/>
+    <arg name="bag_start" default="0"/>
+    <arg name="robot_name" default="robot"/>
+    <arg name="do_log" default="true"/>
+    <arg name="network_entity" default="edge"/>
+
+    <!--Switch between the architectures-->
+    <arg name="arch1" default="false"/>
+    <arg name="arch2" default="false"/>
+    <arg name="arch3" default="false"/>
+
+    <!--If playing bag, just use the rosbag package-->
+    <group if="$(arg source_from_bag)">
+        <remap from="/zed2/zed_node/imu/data" to="$(arg robot_name)/zed2/zed_node/imu/data"/>
+        <remap from="/zed2/zed_node/left/image_rect_color/compressed" to="$(arg robot_name)/zed2/zed_node/left/image_rect_color/compressed"/>
+        <remap from="/livox/lidar" to="$(arg robot_name)/livox/lidar"/>
+        <remap from="/clock" to="$(arg robot_name)/clock"/>
+        <node pkg="rosbag" type="play" name="$(arg robot_name)_bag" output="screen" args="$(arg bag).bag --clock -s $(arg bag_start)">
+        </node>
+    </group>
+
+    <!--Otherwise, bring up the sensors-->
+    <group unless="$(arg source_from_bag)">
+        <!--TO DO: SET THE RIGHT NAMESPACE TO DIFFERENTIATE BETWEEN ACQUISITIONS FROM MORE THE ROBOTS-->
+        <!--Remap the topics to the robot namespace-->
+        <remap from="/zed2/zed_node/imu/data" to="$(arg robot_name)/zed2/zed_node/imu/data"/>
+        <remap from="/zed2/zed_node/left/image_rect_color/compressed" to="$(arg robot_name)/zed2/zed_node/left/image_rect_color/compressed"/>
+        <remap from="/livox/lidar" to="$(arg robot_name)/livox/lidar"/>
+
+        <!--ZED2 camera-->
+        <include file="$(find zed_wrapper)/launch/zed2.launch"/>
+
+        <!--Livox lidar driver from this workspace, with timestamp adapted to system time-->
+        <include file="$(find livox_ros_driver)/launch/livox_lidar_msg.launch"/>
+    </group>
+
+    <group ns="$(arg robot_name)">
+        <!--Measure the RAM and CPU usage for the system and each node-->
+        <include file="$(find cpu_monitor)/launch/cpu_monitor.launch">
+            <arg name="network_entity" value="$(arg network_entity)"/>
+            <arg name="poll_period" value="0.5"/>
+        </include>
+
+        <!--Log the total CPU consumption-->
+        <node name="log_cpu_total_$(arg network_entity)" type="log_cpu_total" pkg="cpu_monitor" output="screen">
+            <param name="robot_name" type="string" value="$(arg robot_name)"/>
+            <param name="network_entity" type="string" value="$(arg network_entity)"/>
+        </node>
+
+        <group if="$(arg arch1)">
+
+            <!--TF from base_link to body, must be better adjusted-->
+            <arg name="tf_body_bl" value="0 0 0 0 0 0"/>
+            <node pkg="tf" type="static_transform_publisher" name="tf_fl2z" args="$(arg tf_body_bl) /body /base_link 10"/>
+
+            <!--Fast lio node with its launch file-->
+            <include file="$(find fast_lio)/launch/mapping_mid70.launch">
+                <arg name="rviz" value="false"/>
+                <arg name="robot_name" value="$(arg robot_name)"/>
+                <arg name="do_log" value="true"/>
+                <arg name="network_entity" value="$(arg network_entity)"/>
+            </include>
+
+            <group if="$(arg arch2)">
+
+                <!--Lidar and color fusion algorithm-->
+                <arg name="project_image_pointcloud_node_name" value="project_image_pointcloud_node"/>
+                <node name="$(arg project_image_pointcloud_node_name)" type="project_cloud_cpu_node" pkg="fuse_color_3d" output="screen">
+                    <rosparam file="$(find fuse_color_3d)/config/zed_params.yaml"/>
+                    <param name="robot_name" type="string" value="$(arg robot_name)"/>
+                </node>
+                <node name="log_$(arg project_image_pointcloud_node_name)" if="$(arg do_log)" pkg="cpu_monitor" type="log_ram_cpu_node" output="screen">
+                    <param name="robot_name" type="string" value="$(arg robot_name)"/>
+                    <param name="node_name" type="string" value="$(arg project_image_pointcloud_node_name)"/>
+                    <param name="network_entity" type="string" value="$(arg network_entity)"/>
+                </node>
+
+                <group if="$(arg arch3)">
+
+                    <!--Scan context algorithm to detect loop closure-->
+                    <include file="$(find aloam_velodyne)/launch/sc_mid70.launch">
+                        <arg name="rvizscpgo" value="false"/>
+                        <arg name="robot_name" value="$(arg robot_name)"/>
+                        <arg name="do_log" value="true"/>
+                        <arg name="network_entity" value="$(arg network_entity)"/>
+                    </include>
+
+                </group><!--arch3-->
+            </group><!--arch2-->
+        </group><!--arch1-->
+    </group><!--ns robot_name-->
+</launch>
