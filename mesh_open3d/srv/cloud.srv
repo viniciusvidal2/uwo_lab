@@ -1,6 +1,11 @@
-sensor_msgs/PointCloud2 cloud
-#float64[] xs
-#float64[] ys
-#float64[] zs
+float64[] x
+float64[] y
+float64[] z
+float64[] r
+float64[] g
+float64[] b
+float64[] nx
+float64[] ny
+float64[] nz
 ---
 bool answer

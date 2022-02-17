@@ -2,7 +2,7 @@
 <launch>
     <!--List of arguments-->
     <arg name="source_from_bag" default="true"/>
-    <arg name="bag" default="$(env HOME)/Desktop/corredor1"/>
+    <arg name="bag" default="$(env HOME)/Desktop/robo1"/>
     <arg name="bag_start" default="0"/>
     <arg name="robot_name" default="robot"/>
     <arg name="do_log" default="true"/>
@@ -84,9 +84,9 @@
         <!--Mesh calculation server node-->
         <arg name="mesh_save_directory" default="$(env HOME)/Desktop"/>
         <arg name="final_mesh_server_node_name" value="final_mesh_server_node"/>
-        <node name="$(arg final_mesh_server_node_name)" type="final_mesh_node" pkg="mesh_open3d" output="screen">
-            <param name="mesh_save_directory" value="$(arg mesh_save_directory)"/>
-            <param name="robot_name" value="$(arg robot_name)"/>
+        <node name="$(arg final_mesh_server_node_name)" type="mesh_server.py" pkg="mesh_open3d" output="screen" args=" $(arg mesh_save_directory) $(arg robot_name)">
+<!--            <param name="mesh_save_directory" value="$(arg mesh_save_directory)"/>-->
+<!--            <param name="robot_name" value="$(arg robot_name)"/>-->
         </node>
         <node name="log_$(arg final_mesh_server_node_name)" if="$(arg do_log)" pkg="cpu_monitor" type="log_ram_cpu_node" output="screen">
             <param name="robot_name" type="string" value="$(arg robot_name)"/>

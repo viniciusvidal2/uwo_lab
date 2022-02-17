@@ -58,11 +58,11 @@ include_directories(
   ${Open3D_INCLUDE_DIRS}
 )
 
-link_directories("~/open3d_install/lib/")
-add_executable(final_mesh_node src/final_mesh.cpp)
-target_link_libraries(final_mesh_node
-${catkin_LIBRARIES}
-${PCL_LIBRARIES}
-${Open3D_LIBRARIES}
-${OpenMP_LIBS}
-)
+#link_directories("~/open3d_install/lib/")
+#add_executable(final_mesh_node src/final_mesh.cpp)
+#target_link_libraries(final_mesh_node
+#${catkin_LIBRARIES}
+#${PCL_LIBRARIES}
+#${Open3D_LIBRARIES}
+#${OpenMP_LIBS}
+#)

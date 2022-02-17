@@ -823,27 +823,42 @@ void performSCLoopClosure(void)
   if(count_same >= 10 && subLaserOdometry.getNumPublishers() == 0){
     mBuf.lock();
     laserCloudMapPGO->clear();
-//    std::vector<double> xs(keyframePosesUpdated.size()), ys(keyframePosesUpdated.size()), zs(keyframePosesUpdated.size());
-    for (int node_idx=0; node_idx < recentIdxUpdated; node_idx++) {
+    for (int node_idx=0; node_idx < recentIdxUpdated; node_idx++)
       *laserCloudMapPGO += *local2global(keyframeLaserCloudsFull[node_idx], keyframePosesUpdated[node_idx]);
-//      xs[node_idx] = keyframePosesUpdated[node_idx].x;
-//      ys[node_idx] = keyframePosesUpdated[node_idx].y;
-//      zs[node_idx] = keyframePosesUpdated[node_idx].z;
-    }
     pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr cloud_mesh (new pcl::PointCloud<pcl::PointXYZRGBNormal>);
     compute_normals_efficient(laserCloudMapPGO, cloud_mesh);
     check_normals_orientations(cloud_mesh);
     //  downSizeFilterMapPGO.setInputCloud(laserCloudMapPGO);
     //  downSizeFilterMapPGO.filter(*laserCloudMapPGO);
 
-    mesh_open3d::cloud srv_msg;
-    sensor_msgs::PointCloud2 cloud_msg;
-    pcl::toROSMsg(*cloud_mesh, cloud_msg);
+    std::vector<double> xs(cloud_mesh->points.size()), ys(cloud_mesh->points.size()), zs(cloud_mesh->points.size());
+    std::vector<double> nxs(cloud_mesh->points.size()), nys(cloud_mesh->points.size()), nzs(cloud_mesh->points.size());
+    std::vector<double> rs(cloud_mesh->points.size()), gs(cloud_mesh->points.size()), bs(cloud_mesh->points.size());
+#pragma omp parallel for
+    for (int i=0; i < cloud_mesh->points.size(); i++) {
+      xs[i] = cloud_mesh->points[i].x;
+      ys[i] = cloud_mesh->points[i].y;
+      zs[i] = cloud_mesh->points[i].z;
+      nxs[i] = cloud_mesh->points[i].normal_x;
+      nys[i] = cloud_mesh->points[i].normal_y;
+      nzs[i] = cloud_mesh->points[i].normal_z;
+      rs[i] = cloud_mesh->points[i].r;
+      gs[i] = cloud_mesh->points[i].g;
+      bs[i] = cloud_mesh->points[i].b;
+    }
     laserCloudMapPGO->clear();
-    srv_msg.request.cloud = cloud_msg;
-//    srv_msg.request.xs = xs;
-//    srv_msg.request.ys = ys;
-//    srv_msg.request.zs = zs;
+    cloud_mesh->clear();
+
+    mesh_open3d::cloud srv_msg;
+    srv_msg.request.x = xs;
+    srv_msg.request.y = ys;
+    srv_msg.request.z = zs;
+    srv_msg.request.nx = nxs;
+    srv_msg.request.ny = nys;
+    srv_msg.request.nz = nzs;
+    srv_msg.request.r = rs;
+    srv_msg.request.g = gs;
+    srv_msg.request.b = bs;
     if(mesh_client.call(srv_msg))
       ROS_INFO("Building up the final mesh");
     else
