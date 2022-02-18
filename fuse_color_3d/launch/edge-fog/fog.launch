@@ -2,12 +2,9 @@
 <launch>
 
     <!--List of arguments-->
-    <arg name="source_from_bag" default="true"/>
-    <arg name="bag" default="$(env HOME)/Desktop/corredor1"/>
-    <arg name="bag_start" default="0"/>
     <arg name="robot_name" default="robot"/>
     <arg name="do_log" default="true"/>
-    <arg name="network_entity" default="edge"/>
+    <arg name="network_entity" default="fog"/>
 
     <!--Switch between the architectures-->
     <arg name="arch1" default="false"/>
