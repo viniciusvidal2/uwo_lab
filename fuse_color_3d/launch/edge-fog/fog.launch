@@ -67,20 +67,20 @@
         </group><!--arch3-->
 
         <!--Mesh calculation server node-->
-    <!--        <arg name="mesh_save_directory" default="$(env HOME)/Desktop"/>
+        <arg name="mesh_save_directory" default="$(env HOME)/Desktop"/>
         <arg name="final_mesh_server_node_name" value="final_mesh_server_node"/>
-        <node name="$(arg final_mesh_server_node_name)" type="final_mesh_node" pkg="mesh_open3d" output="screen">
-            <param name="mesh_save_directory" value="$(arg mesh_save_directory)"/>
-            <param name="robot_name" value="$(arg robot_name)"/>
+        <node name="$(arg final_mesh_server_node_name)" type="mesh_server.py" pkg="mesh_open3d" output="screen" args=" $(arg mesh_save_directory) $(arg robot_name)">
+<!--            <param name="mesh_save_directory" value="$(arg mesh_save_directory)"/>-->
+<!--            <param name="robot_name" value="$(arg robot_name)"/>-->
         </node>
         <node name="log_$(arg final_mesh_server_node_name)" if="$(arg do_log)" pkg="cpu_monitor" type="log_ram_cpu_node" output="screen">
             <param name="robot_name" type="string" value="$(arg robot_name)"/>
             <param name="node_name" type="string" value="$(arg final_mesh_server_node_name)"/>
             <param name="network_entity" type="string" value="$(arg network_entity)"/>
-        </node>-->
+        </node>
 
         <!--Visualize with our settings-->
-        <arg name="visualize" default="false"/>
+        <arg name="visualize" default="true"/>
         <arg name="rviz_uwo_name" value="rviz_uwo"/>
         <group if="$(arg visualize)">
             <node name="$(arg rviz_uwo_name)" pkg="rviz" type="rviz" args=" -d $(find fuse_color_3d)/resources/visualize.rviz" output="screen">

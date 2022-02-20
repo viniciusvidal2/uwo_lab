@@ -18,7 +18,7 @@ using namespace std;
 vector<size_t> rams;
 vector<float> cpus;
 mutex mtx;
-float current_total_cpu;
+ros::Time t;
 
 void ramCallback(const std_msgs::UInt64ConstPtr &msg)
 {
@@ -30,11 +30,9 @@ void cpuCallback(const std_msgs::Float32ConstPtr &msg)
 {
   // Save the current CPU for further logs
   cpus.emplace_back(msg->data);
-}
 
-void processCallback(const std_msgs::Float32ConstPtr &msg)
-{
-  current_total_cpu = msg->data;
+  // Control input messages to finish the log
+  t = ros::Time::now();
 }
 
 int main(int argc, char **argv)
@@ -43,13 +41,10 @@ int main(int argc, char **argv)
   ros::NodeHandle nh;
   ros::NodeHandle n_("~");
 
-  float pct_cpu_idle;
   string robot_name, node_name, network_entity;
   n_.param<string>("robot_name", robot_name, "robot");
   n_.param<string>("node_name", node_name, "node");
   n_.param<string>("network_entity", network_entity, "fog");
-  n_.param<float>("pct_cpu_idle", pct_cpu_idle, 15);
-  pct_cpu_idle = 12.0; // easier this way
 
   string ram_topic_name = "/"+robot_name+"/"+network_entity+"_cpu_monitor/"+robot_name+"/"+node_name+"/mem";
   string cpu_topic_name = "/"+robot_name+"/"+network_entity+"_cpu_monitor/"+robot_name+"/"+node_name+"/cpu";
@@ -62,21 +57,13 @@ int main(int argc, char **argv)
     r1.sleep();
   }
 
-  // This subscribes the whole percentage, so we can monitor if the processes are over
-  string mon_topic_name = "/"+robot_name+"/"+network_entity+"_cpu_monitor/total_cpu";
-  ros::Subscriber sub3 = nh.subscribe(mon_topic_name, 100, &processCallback);
-
+  t = ros::Time::now();
   while(ros::ok()){
     r2.sleep();
     ros::spinOnce();
 
-    if(current_total_cpu <= pct_cpu_idle && pct_cpu_idle > 0 && cpus.size() > 100){
-      // Wait 5 seconds
-      ros::Rate rr(2);
-      for (int i=0; i<10; i++){
-        rr.sleep();
-        ros::spinOnce();
-      }
+    // If two seconds without a new message, it is finished and we can log
+    if(abs((ros::Time::now() - t).toSec()) > 2){
       // Save log
       mtx.lock();
       // Check if the folder exists

@@ -1026,8 +1026,8 @@ int main(int argc, char **argv)
 
   nh.param<string>("robot_name", robot_name, "robot");
 
-  nh.param<double>("keyframe_meter_gap", keyframeMeterGap, 1.0); // pose assignment every k m move
-  nh.param<double>("keyframe_deg_gap", keyframeDegGap, 10.0); // pose assignment every k deg rot
+  nh.param<double>("keyframe_meter_gap", keyframeMeterGap, 0.05); // pose assignment every k m move
+  nh.param<double>("keyframe_deg_gap", keyframeDegGap, 3.0); // pose assignment every k deg rot
   keyframeRadGap = deg2rad(keyframeDegGap);
 
   nh.param<double>("sc_dist_thres", scDistThres, 0.2);

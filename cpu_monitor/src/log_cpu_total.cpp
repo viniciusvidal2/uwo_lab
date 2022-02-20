@@ -4,6 +4,8 @@
 #include <mutex>
 #include <string>
 #include <vector>
+#include <numeric>
+#include <utility>
 #include <ctime>
 #include <boost/filesystem.hpp>
 #include <sys/types.h>
@@ -17,13 +19,18 @@ using namespace std;
 
 vector<float> cpus;
 mutex mtx;
-float current_total_cpu;
+float current_total_cpu, cpu_average;
 
 void cpuCallback(const std_msgs::Float32ConstPtr &msg)
 {
   // Save the current CPU for further logs
-  current_total_cpu = msg->data;
-  cpus.emplace_back(current_total_cpu);
+  cpus.emplace_back(msg->data);
+
+  // Study the averages to see if the processes are done
+  if(cpus.size() > 20){
+    current_total_cpu = std::accumulate(cpus.end()-10, cpus.end(), 0) / 10;
+    cpu_average = std::accumulate(cpus.end()-20, cpus.end()-10, 0) / 10;
+  }
 }
 
 int main(int argc, char **argv)
@@ -35,7 +42,7 @@ int main(int argc, char **argv)
   string robot_name, network_entity;
   n_.param<string>("robot_name", robot_name, "robot");
   n_.param<string>("network_entity", network_entity, "fog");
-  float pct_cpu_idle = 15.0;
+  float pct_cpu_idle = 50.0/100.0;
 
   string cpu_topic_name = "/"+robot_name+"/"+network_entity+"_cpu_monitor/total_cpu";
   ros::Subscriber sub2 = nh.subscribe(cpu_topic_name, 100, &cpuCallback);
@@ -50,7 +57,7 @@ int main(int argc, char **argv)
     r2.sleep();
     ros::spinOnce();
 
-    if(current_total_cpu <= pct_cpu_idle && pct_cpu_idle > 0 && cpus.size() > 30){
+    if(current_total_cpu <= pct_cpu_idle*cpu_average && pct_cpu_idle > 0 && cpus.size() > 30){
       // Wait 5 seconds
       ros::Rate rr(2);
       for (int i=0; i<10; i++){
