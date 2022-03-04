@@ -2,8 +2,11 @@
 <launch>
   <arg name="poll_period" default="1.0"/>
   <arg name="network_entity" default="fog"/>
+  <arg name="robot_name" default="robot"/>
 
   <node pkg="cpu_monitor" name="$(arg network_entity)_cpu_monitor" type="monitor.py" output="screen">
     <param name="poll_period" value="$(arg poll_period)"/>
+    <param name="network_entity" value="$(arg network_entity)"/>
+    <param name="robot_name" value="$(arg robot_name)"/>
   </node>
 </launch>

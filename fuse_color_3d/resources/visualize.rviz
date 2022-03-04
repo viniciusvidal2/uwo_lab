@@ -27,7 +27,7 @@ Panels:
     Experimental: false
     Name: Time
     SyncMode: 0
-    SyncSource: Colored Cloud
+    SyncSource: SC cloud
 Preferences:
   PromptSaveOnExit: true
 Toolbars:
@@ -173,7 +173,7 @@ Visualization Manager:
       Size (Pixels): 3
       Size (m): 0.009999999776482582
       Style: Points
-      Topic: /robot/aft_pgo_map
+      Topic: /robo1/aft_pgo_map
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true
@@ -221,10 +221,10 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 1.3147958517074585
+      Pitch: 0.45479655265808105
       Target Frame: body
       Value: Orbit (rviz)
-      Yaw: 1.4535784721374512
+      Yaw: 2.573579788208008
     Saved: ~
 Window Geometry:
   Displays:
@@ -243,6 +243,6 @@ Window Geometry:
     collapsed: true
   Width: 1389
   X: 529
-  Y: 137
+  Y: 107
   ZED image:
     collapsed: false

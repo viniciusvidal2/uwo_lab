@@ -21,15 +21,40 @@ def ns_join(*names):
   return functools.reduce(rospy.names.ns_join, names, "")
 
 class Node:
-  def __init__(self, name, pid):
+  def __init__(self, name, pid, robot_name, network_entity):
     self.name = name
+    self.robot_name = robot_name
+    self.network_entity = network_entity
     self.proc = psutil.Process(pid)
     self.cpu_publisher = rospy.Publisher(ns_join("~", name[1:], "cpu"), Float32, queue_size=20)
     self.mem_publisher = rospy.Publisher(ns_join("~", name[1:], "mem"), UInt64, queue_size=20)
 
+    self.log_cpu = []
+    self.log_mem = []
+
   def publish(self):
     self.cpu_publisher.publish(Float32(self.proc.cpu_percent()))
     self.mem_publisher.publish(UInt64(self.proc.memory_info().rss))
+
+  def add_log(self):
+    self.log_cpu.append(float(self.proc.cpu_percent()))
+    self.log_mem.append(int(self.proc.memory_info().rss))
+
+  def save_log(self):
+    # Check if folder exists
+    folder_name = os.path.join(os.getenv('HOME'), 'Desktop', self.robot_name+'_log')
+    if not os.path.isdir(folder_name):
+        os.mkdir(folder_name)
+    # Open file and write txt for cpu
+    f = open(os.path.join(folder_name, self.name.split('/')[-1])+'_cpu.txt', 'w')
+    for c in self.log_cpu:
+      f.write('%.2f\n'%c)
+    f.close()
+    # Open file and write txt for ram
+    f = open(os.path.join(folder_name, self.name.split('/')[-1])+'_ram.txt', 'w')
+    for m in self.log_mem:
+      f.write('%d\n'%m)
+    f.close()
 
   def alive(self):
     return self.proc.is_running()
@@ -39,6 +64,11 @@ if __name__ == "__main__":
   master = rospy.get_master()
 
   poll_period = rospy.get_param('~poll_period', 1.0)
+  network_entity = rospy.get_param('~network_entity', 'fog')
+  robot_name = rospy.get_param('~robot_name', 'robot')
+
+  log_total_cpu = []
+  log_total_mem = []
 
   this_ip = os.environ.get("ROS_IP")
 
@@ -88,20 +118,34 @@ if __name__ == "__main__":
         except:
           rospy.logerr("[cpu monitor] failed to get pid for node %s from NODEINFO response: %s" % (node, resp))
         else:
-          node_map[node] = Node(name=node, pid=pid)
+          node_map[node] = Node(name=node, pid=pid, robot_name=robot_name, network_entity=network_entity)
           rospy.loginfo("[cpu monitor] adding new node %s" % node)
 
     for node_name, node in list(node_map.items()):
       if node.alive():
-        node.publish()
+#        node.publish()
+        node.add_log()
       else:
         rospy.logwarn("[cpu monitor] lost node %s" % node_name)
+        node.save_log()
         del node_map[node_name]
 
     cpu_publish.publish(Float32(psutil.cpu_percent()))
+    log_total_cpu.append(float(psutil.cpu_percent()))
+#    print('\nCurrent cpu: %.5f\n'%psutil.cpu_percent())
 
     vm = psutil.virtual_memory()
     for mem_topic, mem_publisher in zip(mem_topics, mem_publishers):
       mem_publisher.publish(UInt64(getattr(vm, mem_topic)))
 
     rospy.sleep(poll_period)
+
+  # Save log for the full cpu usage
+  folder_name = os.path.join(os.getenv('HOME'), 'Desktop', robot_name+'_log')
+  if not os.path.isdir(folder_name):
+      os.mkdir(folder_name)
+  # Open file and write txt for cpu
+  f = open(os.path.join(folder_name, 'cpu_total_'+network_entity+'.txt'), 'w')
+  for c in log_total_cpu:
+    f.write('%.2f\n'%c)
+  f.close()

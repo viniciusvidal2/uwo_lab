@@ -19,11 +19,11 @@
 
     <arg name="FASTLIO_node_name" value="FASTLIO_node"/>
     <node pkg="fast_lio" type="fastlio_mapping" name="$(arg FASTLIO_node_name)" output="screen" />
-    <node name="log_$(arg FASTLIO_node_name)" if="$(arg do_log)" pkg="cpu_monitor" type="log_ram_cpu_node" output="screen">
+    <!--<node name="log_$(arg FASTLIO_node_name)" if="$(arg do_log)" pkg="cpu_monitor" type="log_ram_cpu_node" output="screen">
         <param name="robot_name" type="string" value="$(arg robot_name)"/>
         <param name="node_name" type="string" value="$(arg FASTLIO_node_name)"/>
         <param name="network_entity" type="string" value="$(arg network_entity)"/>
-    </node>
+    </node>-->
 
     <group if="$(arg rviz)">
     <node launch-prefix="nice" pkg="rviz" type="rviz" ns="$(arg robot_name)" name="rviz" args="-d $(find fast_lio)/rviz_cfg/loam_livox.rviz" />

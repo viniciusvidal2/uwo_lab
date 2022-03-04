@@ -6,7 +6,7 @@ from work_data import work_cpu, work_ram, work_latency
 
 def read_log_file(f, name):
     file_name = os.path.join(f, name)
-    return np.squeeze(pd.read_fwf(file_name).to_numpy(dtype=float))
+    return np.abs(np.squeeze(pd.read_fwf(file_name).to_numpy(dtype=float)))
 
 
 def filter_array_mean_std_dev(a, dev):
@@ -21,10 +21,10 @@ class Struct:
 
 if __name__ == '__main__':
     # Define the test folder to read data from
-    robot_test_name = 'robot'+'_log'
+    robot_test_name = 'robo1'+'_log'
     folder = os.path.join(os.getenv('HOME'), 'Desktop', robot_test_name)
     # Architecture, from 0 to 4
-    architecture = 0
+    architecture = 1
 
     ####################################################################
     ###### Read files
@@ -41,7 +41,7 @@ if __name__ == '__main__':
     lat.fusecolor_scancontext_cloud[lat.fusecolor_scancontext_cloud > 1] = 0
     ## Message sizes
     msg_size = Struct()
-    msg_size.fusecolor_im = read_log_file(folder, 'messagesize_fusecolor_im.txt')
+    msg_size.fusecolor_im = read_log_file(folder, 'messagesize_fusecolor_im.txt')/10  # JPEG compression
     msg_size.fusecolor_cloudin = read_log_file(folder, 'messagesize_fusecolor_cloudin.txt')
     msg_size.fusecolor_cloudout = read_log_file(folder, 'messagesize_fusecolor_cloudout.txt')
     ## CPU usage
@@ -94,9 +94,7 @@ if __name__ == '__main__':
     ####################################################################
     ###### Max. CPU in each device, plus plots
     ####################################################################
-    work_cpu(cpu=cpu, arch=architecture)
-    max_cpu_edge = np.max(cpu.total_edge) if 'cpu.total_edge' in locals() else 0
-    max_cpu_fog = np.max(cpu.total_fog)
+    max_cpu_edge, max_cpu_fog = work_cpu(cpu=cpu, arch=architecture)
 
     ####################################################################
     ###### Max. RAM in each device, plus plots

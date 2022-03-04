@@ -42,11 +42,11 @@
     <arg name="scan_context_node_name" value="scan_context_node"/>
     <node pkg="aloam_velodyne" type="alaserPGO" name="$(arg scan_context_node_name)" output="screen"> <!-- Scan Context-based PGO -->
     </node>
-    <node name="log_$(arg scan_context_node_name)" if="$(arg do_log)" pkg="cpu_monitor" type="log_ram_cpu_node" output="screen">
+    <!--<node name="log_$(arg scan_context_node_name)" if="$(arg do_log)" pkg="cpu_monitor" type="log_ram_cpu_node" output="screen">
         <param name="robot_name" type="string" value="$(arg robot_name)"/>
         <param name="node_name" type="string" value="$(arg scan_context_node_name)"/>
         <param name="network_entity" type="string" value="$(arg network_entity)"/>
-    </node>
+    </node>-->
 
     <!-- visulaization -->
     <arg name="rvizscpgo" default="true" />
