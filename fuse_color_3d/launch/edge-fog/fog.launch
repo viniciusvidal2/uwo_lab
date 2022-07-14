@@ -3,7 +3,6 @@
 
     <!--List of arguments-->
     <arg name="robot_name" default="robot"/>
-    <arg name="do_log" default="true"/>
     <arg name="network_entity" default="fog"/>
 
     <!--Switch between the architectures-->
@@ -18,20 +17,12 @@
             <arg name="poll_period" value="0.5"/>
         </include>
 
-        <!--Log the total CPU consumption-->
-        <node name="log_cpu_total_$(arg network_entity)" type="log_cpu_total" pkg="cpu_monitor" output="screen">
-            <param name="robot_name" type="string" value="$(arg robot_name)"/>
-            <param name="network_entity" type="string" value="$(arg network_entity)"/>
-        </node>
-
         <group unless="$(arg arch3)">
 
             <!--Scan context algorithm to detect loop closure-->
             <include file="$(find aloam_velodyne)/launch/sc_mid70.launch">
                 <arg name="rvizscpgo" value="false"/>
                 <arg name="robot_name" value="$(arg robot_name)"/>
-                <arg name="do_log" value="true"/>
-                <arg name="network_entity" value="$(arg network_entity)"/>
             </include>
 
             <group unless="$(arg arch2)">
@@ -41,11 +32,6 @@
                 <node name="$(arg project_image_pointcloud_node_name)" type="project_cloud_cpu_node" pkg="fuse_color_3d" output="screen">
                     <rosparam file="$(find fuse_color_3d)/config/zed_params.yaml"/>
                     <param name="robot_name" type="string" value="$(arg robot_name)"/>
-                </node>
-                <node name="log_$(arg project_image_pointcloud_node_name)" if="$(arg do_log)" pkg="cpu_monitor" type="log_ram_cpu_node" output="screen">
-                    <param name="robot_name" type="string" value="$(arg robot_name)"/>
-                    <param name="node_name" type="string" value="$(arg project_image_pointcloud_node_name)"/>
-                    <param name="network_entity" type="string" value="$(arg network_entity)"/>
                 </node>
 
                 <group unless="$(arg arch1)">
@@ -58,8 +44,6 @@
                     <include file="$(find fast_lio)/launch/mapping_mid70.launch">
                         <arg name="rviz" value="false"/>
                         <arg name="robot_name" value="$(arg robot_name)"/>
-                        <arg name="do_log" value="true"/>
-                        <arg name="network_entity" value="$(arg network_entity)"/>
                     </include>
 
                 </group><!--arch1-->
@@ -67,30 +51,18 @@
         </group><!--arch3-->
 
         <!--Mesh calculation server node-->
-        <arg name="mesh_save_directory" default="$(env HOME)/Desktop"/>
+  <!--      <arg name="mesh_save_directory" default="$(env HOME)/Desktop"/>
         <arg name="final_mesh_server_node_name" value="final_mesh_server_node"/>
         <node name="$(arg final_mesh_server_node_name)" type="mesh_server.py" pkg="mesh_open3d" output="screen" args=" $(arg mesh_save_directory) $(arg robot_name)">
-<!--            <param name="mesh_save_directory" value="$(arg mesh_save_directory)"/>-->
-<!--            <param name="robot_name" value="$(arg robot_name)"/>-->
-        </node>
-        <node name="log_$(arg final_mesh_server_node_name)" if="$(arg do_log)" pkg="cpu_monitor" type="log_ram_cpu_node" output="screen">
-            <param name="robot_name" type="string" value="$(arg robot_name)"/>
-            <param name="node_name" type="string" value="$(arg final_mesh_server_node_name)"/>
-            <param name="network_entity" type="string" value="$(arg network_entity)"/>
-        </node>
+        </node>-->
 
         <!--Visualize with our settings-->
-        <arg name="visualize" default="true"/>
+<!--        <arg name="visualize" default="true"/>
         <arg name="rviz_uwo_name" value="rviz_uwo"/>
         <group if="$(arg visualize)">
             <node name="$(arg rviz_uwo_name)" pkg="rviz" type="rviz" args=" -d $(find fuse_color_3d)/resources/visualize.rviz" output="screen">
             </node>
-            <node name="log_$(arg rviz_uwo_name)" if="$(arg do_log)" pkg="cpu_monitor" type="log_ram_cpu_node" output="screen">
-                <param name="robot_name" type="string" value="$(arg robot_name)"/>
-                <param name="node_name" type="string" value="$(arg rviz_uwo_name)"/>
-                <param name="network_entity" type="string" value="$(arg network_entity)"/>
-            </node>
-        </group>
+        </group>-->
     </group><!--ns robot_name-->
 
 </launch>

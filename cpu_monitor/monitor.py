@@ -118,8 +118,9 @@ if __name__ == "__main__":
         except:
           rospy.logerr("[cpu monitor] failed to get pid for node %s from NODEINFO response: %s" % (node, resp))
         else:
-          node_map[node] = Node(name=node, pid=pid, robot_name=robot_name, network_entity=network_entity)
-          rospy.loginfo("[cpu monitor] adding new node %s" % node)
+            if node.split('/')[-2] == robot_name:
+              node_map[node] = Node(name=node, pid=pid, robot_name=robot_name, network_entity=network_entity)
+              rospy.loginfo("[cpu monitor] adding new node %s" % node)
 
     for node_name, node in list(node_map.items()):
       if node.alive():
@@ -130,9 +131,9 @@ if __name__ == "__main__":
         node.save_log()
         del node_map[node_name]
 
-    cpu_publish.publish(Float32(psutil.cpu_percent()))
-    log_total_cpu.append(float(psutil.cpu_percent()))
-#    print('\nCurrent cpu: %.5f\n'%psutil.cpu_percent())
+    current_cpu = psutil.cpu_percent()
+#    cpu_publish.publish(Float32(current_cpu))
+    log_total_cpu.append(float(current_cpu))
 
     vm = psutil.virtual_memory()
     for mem_topic, mem_publisher in zip(mem_topics, mem_publishers):

@@ -2,10 +2,9 @@
 <launch>
     <!--List of arguments-->
     <arg name="source_from_bag" default="true"/>
-    <arg name="bag" default="$(env HOME)/Desktop/corredor1"/>
+    <arg name="bag" default="$(env HOME)/Desktop/robo1"/>
     <arg name="bag_start" default="0"/>
     <arg name="robot_name" default="robot"/>
-    <arg name="do_log" default="true"/>
     <arg name="network_entity" default="edge"/>
 
     <!--Switch between the architectures-->
@@ -45,12 +44,6 @@
             <arg name="poll_period" value="0.5"/>
         </include>
 
-        <!--Log the total CPU consumption-->
-        <node name="log_cpu_total_$(arg network_entity)" type="log_cpu_total" pkg="cpu_monitor" output="screen">
-            <param name="robot_name" type="string" value="$(arg robot_name)"/>
-            <param name="network_entity" type="string" value="$(arg network_entity)"/>
-        </node>
-
         <group if="$(arg arch1)">
 
             <!--TF from base_link to body, must be better adjusted-->
@@ -61,8 +54,6 @@
             <include file="$(find fast_lio)/launch/mapping_mid70.launch">
                 <arg name="rviz" value="false"/>
                 <arg name="robot_name" value="$(arg robot_name)"/>
-                <arg name="do_log" value="true"/>
-                <arg name="network_entity" value="$(arg network_entity)"/>
             </include>
 
             <group if="$(arg arch2)">
@@ -73,11 +64,6 @@
                     <rosparam file="$(find fuse_color_3d)/config/zed_params.yaml"/>
                     <param name="robot_name" type="string" value="$(arg robot_name)"/>
                 </node>
-                <node name="log_$(arg project_image_pointcloud_node_name)" if="$(arg do_log)" pkg="cpu_monitor" type="log_ram_cpu_node" output="screen">
-                    <param name="robot_name" type="string" value="$(arg robot_name)"/>
-                    <param name="node_name" type="string" value="$(arg project_image_pointcloud_node_name)"/>
-                    <param name="network_entity" type="string" value="$(arg network_entity)"/>
-                </node>
 
                 <group if="$(arg arch3)">
 
@@ -85,8 +71,6 @@
                     <include file="$(find aloam_velodyne)/launch/sc_mid70.launch">
                         <arg name="rvizscpgo" value="false"/>
                         <arg name="robot_name" value="$(arg robot_name)"/>
-                        <arg name="do_log" value="true"/>
-                        <arg name="network_entity" value="$(arg network_entity)"/>
                     </include>
 
                 </group><!--arch3-->

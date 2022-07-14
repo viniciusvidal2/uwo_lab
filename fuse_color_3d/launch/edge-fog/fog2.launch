@@ -1,16 +1,14 @@
 <?xml version="1.0"?>
 <launch>
-    <include file="$(find fuse_color_3d)/launch/fog.launch">
-        <arg name="robot_name" default="robo1"/>
-        <arg name="do_log" default="true"/>
+    <include file="$(find fuse_color_3d)/launch/edge-fog/fog.launch">
+        <arg name="robot_name" default="robo10"/>
         <arg name="network_entity" default="fog"/>
         <arg name="arch1" default="false"/>
         <arg name="arch2" default="false"/>
         <arg name="arch3" default="false"/>
    </include>
-   <include file="$(find fuse_color_3d)/launch/fog.launch">
-       <arg name="robot_name" default="robo3"/>
-       <arg name="do_log" default="true"/>
+   <include file="$(find fuse_color_3d)/launch/edge-fog/fog.launch">
+       <arg name="robot_name" default="robo30"/>
        <arg name="network_entity" default="fog"/>
        <arg name="arch1" default="false"/>
        <arg name="arch2" default="false"/>
