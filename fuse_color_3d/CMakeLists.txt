@@ -27,7 +27,7 @@ if(NOT OpenCV_FOUND)
   message(STATUS "Did not find Opencv4, lets go with the ROS builtin version ...")
   find_package(OpenCV REQUIRED) # This is for the edge with ros melodic
 endif()
-find_package(CUDA REQUIRED)
+# find_package(CUDA REQUIRED)
 find_package(OpenMP REQUIRED)
 if(OPENMP_FOUND)
   message(STATUS "OPENMP FOUND")
@@ -50,9 +50,9 @@ include_directories(
   ${OpenMP_INCLUDE_DIRS}
 )
 
-set(CUDA_NVCC_FLAGS "-arch=compute_75" CACHE STRING "nvcc flags" FORCE)
-set(CUDA_VERBOSE_BUILD ON CACHE BOOL "nvcc verbose" FORCE)
-set(LIB_TYPE STATIC)
+# set(CUDA_NVCC_FLAGS "-arch=compute_75" CACHE STRING "nvcc flags" FORCE)
+# set(CUDA_VERBOSE_BUILD ON CACHE BOOL "nvcc verbose" FORCE)
+# set(LIB_TYPE STATIC)
 #cuda_add_library(CUDAprojectLib ${LIB_TYPE} src/project.cu)
 
 add_executable(project_cloud_cpu_node src/project_image_pointcloud_cpu.cpp)
@@ -60,6 +60,14 @@ add_executable(project_cloud_cpu_node src/project_image_pointcloud_cpu.cpp)
 TARGET_LINK_LIBRARIES(project_cloud_cpu_node
 ${catkin_LIBRARIES}
 #CUDAprojectLib
+${OpenCV_LIBS}
+${PCL_LIBRARIES}
+${OpenMP_LIBS}
+)
+
+add_executable(study_octree_efficiency_node src/study_octree_efficiency_node.cpp)
+TARGET_LINK_LIBRARIES(study_octree_efficiency_node
+${catkin_LIBRARIES}
 ${OpenCV_LIBS}
 ${PCL_LIBRARIES}
 ${OpenMP_LIBS}

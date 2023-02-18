@@ -858,22 +858,22 @@ int main(int argc, char** argv)
 
   /*** ROS subscribe initialization ***/
   ros::Subscriber sub_pcl = p_pre->lidar_type == AVIA ? \
-        nh.subscribe("/"+robot_name+lid_topic, 200000, livox_pcl_cbk) : \
+        nh.subscribe(lid_topic, 200000, livox_pcl_cbk) : \
         nh.subscribe(lid_topic, 200000, standard_pcl_cbk);
-  ros::Subscriber sub_imu = nh.subscribe("/"+robot_name+imu_topic, 200000, imu_cbk);
-  ros::Subscriber sub_clk = nh.subscribe("/"+robot_name+"/clock", 1, clockCallback); // Vinicius
+  ros::Subscriber sub_imu = nh.subscribe(imu_topic, 200000, imu_cbk);
+  ros::Subscriber sub_clk = nh.subscribe("/clock", 1, clockCallback); // Vinicius
   ros::Publisher pubLaserCloudFull = nh.advertise<sensor_msgs::PointCloud2>
-      ("/"+robot_name+"/cloud_registered", 100000);
+      ("/cloud_registered", 100000);
   ros::Publisher pubLaserCloudFull_body = nh.advertise<sensor_msgs::PointCloud2>
-      ("/"+robot_name+"/cloud_registered_body", 100000);
+      ("/cloud_registered_body", 100000);
   ros::Publisher pubLaserCloudEffect = nh.advertise<sensor_msgs::PointCloud2>
-      ("/"+robot_name+"/cloud_effected", 100000);
+      ("/cloud_effected", 100000);
   ros::Publisher pubLaserCloudMap = nh.advertise<sensor_msgs::PointCloud2>
-      ("/"+robot_name+"/Laser_map", 100000);
+      ("/Laser_map", 100000);
   ros::Publisher pubOdomAftMapped = nh.advertise<nav_msgs::Odometry>
-      ("/"+robot_name+"/Odometry", 100000);
+      ("/Odometry", 100000);
   ros::Publisher pubPath          = nh.advertise<nav_msgs::Path>
-      ("/"+robot_name+"/path", 100000);
+      ("/path", 100000);
   //------------------------------------------------------------------------------------------------------
   signal(SIGINT, SigHandle);
   ros::Rate rate(5000);
@@ -1038,7 +1038,7 @@ int main(int argc, char** argv)
     if(!flg_first_scan && sub_pcl.getNumPublishers() == 0 && sub_imu.getNumPublishers() == 0){
       // Save data log for this node - Vinicius
       // Check if the folder exists
-      string log_dir = string(getenv("HOME")) + "/Desktop/" + robot_name + "_log/";
+      string log_dir = string(getenv("HOME")) + "/Desktop/fastlio_log/";
       if(!opendir(log_dir.c_str()))
         boost::filesystem::create_directory(log_dir.c_str());
       ROS_INFO("Writing logs to %s ...", log_dir.c_str());

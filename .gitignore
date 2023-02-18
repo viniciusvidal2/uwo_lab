@@ -2,3 +2,5 @@
 ./plotting_logs/__pycache__/work_data.cpython-38.pyc
 ./plotting_logs/.idea/
 ./mesh_open3d/scripts/.idea/*
+./.vscode/*
+.vscode

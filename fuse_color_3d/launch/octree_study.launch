@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<launch>
+    <!--List of arguments-->
+    <arg name="bag" default="$(env HOME)/Downloads/bags_uwo/carro"/>
+    <arg name="bag_start" default="0"/>
+
+    <!--If playing bag, just use the rosbag package-->
+    <node pkg="rosbag" type="play" name="play_bag" output="log" args="$(arg bag).bag --clock -s $(arg bag_start)">
+    </node>
+
+    <!--TF from base_link to body, must be better adjusted-->
+    <arg name="tf_body_bl" value="0 0 0 0 0 0"/>
+    <node pkg="tf" type="static_transform_publisher" name="tf_fl2z" args="$(arg tf_body_bl) /body /base_link 10"/>
+
+    <!--Fast lio node with its launch file-->
+    <include file="$(find fast_lio)/launch/mapping_mid70.launch">
+        <arg name="rviz" value="false"/>
+        <arg name="robot_name" value=""/>
+    </include>
+
+    <!--Lidar and color fusion algorithm - OCTREE-->
+    <node name="study_octree_efficiency_node" type="study_octree_efficiency_node" pkg="fuse_color_3d" output="screen">
+        <rosparam file="$(find fuse_color_3d)/config/zed_params.yaml"/>
+    </node>
+</launch>
